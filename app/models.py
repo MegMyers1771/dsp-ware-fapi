@@ -48,7 +48,6 @@ class Item(Base):
     marker = relationship("Marker")
 
 
-# Метаданные и аналоги
 class AnalogGroup(Base):
     __tablename__ = "analog_groups"
 
@@ -56,7 +55,8 @@ class AnalogGroup(Base):
     category = Column(String)
     description = Column(String)
 
-    metadata = relationship("Metadata", back_populates="group")
+    meta_entries = relationship("Metadata", back_populates="group")
+
 
 
 class Metadata(Base):
@@ -69,4 +69,5 @@ class Metadata(Base):
     params = Column(JSON)
     similarity = Column(Float, default=1.0)
 
-    group = relationship("AnalogGroup", back_populates="metadata")
+    group = relationship("AnalogGroup", back_populates="meta_entries")
+
