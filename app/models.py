@@ -1,73 +1,112 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, JSON, Float
-from sqlalchemy.orm import relationship
-from app.db import Base
+from datetime import datetime
+from sqlalchemy import (
+    Column, Integer, String, ForeignKey, DateTime, Boolean, JSON
+)
+from sqlalchemy.orm import relationship, declarative_base
 
+Base = declarative_base()
+
+
+# --- Tags ---
+class Tag(Base):
+    __tablename__ = "tags"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    color = Column(String, default="#cccccc")
+
+    # Связи
+    tabs = relationship("Tab", back_populates="tag")
+    boxes = relationship("Box", back_populates="tag")
+    slots = relationship("Slot", back_populates="tag")
+    items = relationship("Item", back_populates="tag")
+
+
+# --- Tabs ---
 class Tab(Base):
     __tablename__ = "tabs"
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, unique=True, nullable=False)
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    description = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    tag_id = Column(Integer, ForeignKey("tags.id"), nullable=True)
 
-    items = relationship("Item", back_populates="tab")
+    # Связи
+    tag = relationship("Tag", back_populates="tabs")
+    boxes = relationship("Box", back_populates="tab", cascade="all, delete")
+    fields = relationship("TabField", back_populates="tab", cascade="all, delete")
 
 
+# --- Tab fields (динамические параметры для айтемов этой вкладки) ---
+class TabField(Base):
+    __tablename__ = "tab_fields"
+
+    id = Column(Integer, primary_key=True)
+    tab_id = Column(Integer, ForeignKey("tabs.id"), nullable=False)
+    name = Column(String, nullable=False)
+    field_type = Column(String, default="string")  # string, int, float, bool, date
+    required = Column(Boolean, default=False)
+    default_value = Column(String, nullable=True)
+
+    tab = relationship("Tab", back_populates="fields")
+
+
+# --- Boxes ---
 class Box(Base):
     __tablename__ = "boxes"
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, unique=True, nullable=False)
-    color = Column(String)
-    zone = Column(String)
-    description = Column(String)
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    capacity = Column(Integer, default=10)
+    slot_count = Column(Integer, default=0)
+    color = Column(String, nullable=True)
+    zone = Column(String, nullable=True)
+    description = Column(String, nullable=True)
+    tab_id = Column(Integer, ForeignKey("tabs.id"), nullable=False)
+    tag_id = Column(Integer, ForeignKey("tags.id"), nullable=True)
 
-    items = relationship("Item", back_populates="box")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Связи
+    tab = relationship("Tab", back_populates="boxes")
+    slots = relationship("Slot", back_populates="box", cascade="all, delete")
+    items = relationship("Item", back_populates="box", cascade="all, delete")
+    tag = relationship("Tag", back_populates="boxes")
 
 
-class Marker(Base):
-    __tablename__ = "markers"
+# --- Slots ---
+class Slot(Base):
+    __tablename__ = "slots"
 
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, unique=True, nullable=False)
-    color = Column(String)
-    description = Column(String)
+    id = Column(Integer, primary_key=True)
+    box_id = Column(Integer, ForeignKey("boxes.id"), nullable=False)
+    position = Column(Integer, nullable=False)
+    max_qty = Column(Integer, default=10)
+    tag_id = Column(Integer, ForeignKey("tags.id"), nullable=True)
+
+    box = relationship("Box", back_populates="slots")
+    items = relationship("Item", back_populates="slot", cascade="all, delete")
+    tag = relationship("Tag", back_populates="slots")
 
 
+# --- Items ---
 class Item(Base):
     __tablename__ = "items"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
-    qty = Column(Integer, default=0)
-    attributes = Column(JSON)
-    tab_id = Column(Integer, ForeignKey("tabs.id"))
-    box_id = Column(Integer, ForeignKey("boxes.id"))
-    marker_id = Column(Integer, ForeignKey("markers.id"), nullable=True)
+    qty = Column(Integer, default=1)
+    position = Column(Integer, nullable=True)
+    metadata_json = Column(JSON, default={})
+    tab_id = Column(Integer, ForeignKey("tabs.id"), nullable=False)
+    box_id = Column(Integer, ForeignKey("boxes.id"), nullable=True)
+    slot_id = Column(Integer, ForeignKey("slots.id"), nullable=True)
+    tag_id = Column(Integer, ForeignKey("tags.id"), nullable=True)
 
-    tab = relationship("Tab", back_populates="items")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
     box = relationship("Box", back_populates="items")
-    marker = relationship("Marker")
-
-
-class AnalogGroup(Base):
-    __tablename__ = "analog_groups"
-
-    id = Column(Integer, primary_key=True, index=True)
-    category = Column(String)
-    description = Column(String)
-
-    meta_entries = relationship("Metadata", back_populates="group")
-
-
-
-class Metadata(Base):
-    __tablename__ = "metadata"
-
-    id = Column(Integer, primary_key=True, index=True)
-    item_id = Column(Integer, ForeignKey("items.id"))
-    group_id = Column(Integer, ForeignKey("analog_groups.id"))
-    hash = Column(String, unique=True)
-    params = Column(JSON)
-    similarity = Column(Float, default=1.0)
-
-    group = relationship("AnalogGroup", back_populates="meta_entries")
-
+    slot = relationship("Slot", back_populates="items")
+    tag = relationship("Tag", back_populates="items")

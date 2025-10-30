@@ -1,2 +1,8 @@
 __init__.py
 __pycache__/
+.env/
+.envdsp/
+.env
+.vscode/
+alembic/
+alembic.ini
