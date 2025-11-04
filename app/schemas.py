@@ -14,6 +14,9 @@ class TagRead(TagBase):
 
     class Config:
         orm_mode = True
+        
+class TagUpdate(TagBase):
+    ...
 
 
 # --- Tabs ---
@@ -25,47 +28,53 @@ class TabBase(BaseModel):
 class TabCreate(TabBase):
     pass
 
-class TabRead(BaseModel):
+class TabRead(TabBase):
     id: int
-    name: str
-    description: Optional[str]
-    tag_id: Optional[int] = None
+    # name: str
+    # description: Optional[str]
+    # tag_id: Optional[int] = None
     box_count: Optional[int] = 0
     fields: List["TabFieldRead"] = []
 
     class Config:
         orm_mode = True
 
+class TabUpdate(TabBase):
+    ...
+    # name: Optional[str]
+    # tag_id: Optional[int]
+
 
 # --- Tab fields ---
 class TabFieldBase(BaseModel):
     name: str
-    field_type: Optional[str] = "string"
+    field_type: Optional[Any] = "string"
     required: Optional[bool] = False
-    default_value: Optional[str] = None
+    default_value: Optional[Any] = None
+    allowed_values: Optional[List[Any] | Dict[str, Any]] = None
+    
+    class Config:
+        orm_mode = True
 
 class TabFieldCreate(TabFieldBase):
     tab_id: int
 
-class TabFieldRead(BaseModel):
-    id: int
+class TabFieldRead(TabFieldBase):
     name: str
-    field_type: str
-    required: bool
-    default_value: Optional[Any]
-
-    class Config:
-        orm_mode = True
-
+    
+class TabFieldUpdate(TabFieldBase):
+    ...
+    # name: Optional[str]
+    # field_type: Optional[str]
+    # required: Optional[bool]
+    # default_value: Optional[str]
+    # allowed_values: Optional[dict]  # <- список/словарь разрешённых значений
 
 # --- Boxes ---
 class BoxBase(BaseModel):
     name: str
     capacity: int = 10
     slot_count: int = 0
-    color: Optional[str] = None
-    zone: Optional[str] = None
-    description: Optional[str] = None
     tag_id: Optional[int] = None  # теперь можно указать тег
 
 class BoxCreate(BoxBase):
@@ -74,10 +83,18 @@ class BoxCreate(BoxBase):
 class BoxRead(BoxBase):
     id: int
     tab_id: int
+    items_count: int = 0
     # tag_id: Optional[int]
 
     class Config:
         orm_mode = True
+
+class BoxUpdate(BoxBase):
+    ...
+    # name: Optional[str]
+    # capacity: Optional[int]
+    # slot_count: Optional[int]
+    # tag_id: Optional[int]
 
 
 # --- Slots ---
@@ -108,7 +125,7 @@ class ItemBase(BaseModel):
 
 class ItemCreate(ItemBase):
     tab_id: int
-    box_id: Optional[int]
+    box_id: Optional[str]
     slot_id: Optional[int]
 
 class ItemRead(ItemBase):
@@ -120,3 +137,12 @@ class ItemRead(ItemBase):
 
     class Config:
         orm_mode = True
+        
+class ItemUpdate(ItemBase):
+    box_id: Optional[int]
+    # name: Optional[str]
+    # box_id: Optional[int]
+    # tag_id: Optional[int]
+    # slot_id: Optional[int]
+    # position: Optional[int]
+    # metadata_json: Optional[Dict[str, Any]]

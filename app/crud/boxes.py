@@ -1,0 +1,113 @@
+from sqlalchemy.orm import Session
+from app import models, schemas
+from sqlalchemy import func
+from fastapi import HTTPException
+
+def create_box(db: Session, box: schemas.BoxCreate):
+    db_box = models.Box(**box.dict())
+    db.add(db_box)
+    db.commit()
+
+    slot_count = int(db_box.slot_count)
+    
+    if slot_count > 0:
+        for i in range(1, slot_count + 1):
+            slot = models.Slot(
+                box_id=db_box.id,
+                position=i,
+                max_qty=db_box.capacity // db_box.slot_count
+            )
+            db.add(slot)
+        db.commit()
+
+    db.refresh(db_box)
+    return db_box
+
+def get_box(db: Session, box_id: int):
+    return db.query(models.Box).filter(models.Box.id == box_id).first()
+
+def update_box(db: Session, box_id: int, box_data: schemas.BoxUpdate):
+    db_box = get_box(db, box_id)
+    if not db_box:
+        raise HTTPException(status_code=404, detail="Box not found")
+
+    for key, value in box_data.dict(exclude_unset=True).items():
+        setattr(db_box, key, value)
+
+    db.commit()
+    db.refresh(db_box)
+    return db_box
+
+def delete_box(db: Session, box_id: int):
+    db_box = get_box(db, box_id)
+    if not db_box:
+        raise HTTPException(status_code=404, detail="Box not found")
+
+    item_count = db.query(models.Item).filter(models.Item.box_id == box_id).count()
+    if item_count > 0:
+        raise HTTPException(status_code=400, detail="Cannot delete non-empty box")
+
+    db.delete(db_box)
+    db.commit()
+    return {"detail": f"Box {box_id} deleted"}
+
+def get_boxes(db: Session):
+    """
+    Возвращает список боксов с подсчитанным количеством айтемов в каждом.
+    Используется SQL JOIN + GROUP BY для высокой производительности.
+    """
+    # 🔹 Подсчёт количества айтемов в каждом боксе одним запросом
+    box_query = (
+        db.query(
+            models.Box.id,
+            models.Box.name,
+            models.Box.tab_id,
+            models.Box.capacity,
+            models.Box.slot_count,
+            models.Box.tag_id,
+            func.count(models.Item.id).label("items_count")
+        )
+        .outerjoin(models.Item, models.Item.box_id == models.Box.id)
+        .group_by(models.Box.id)
+        .order_by(models.Box.id)
+    )
+
+    # 🔹 Формируем список словарей (для совместимости с Pydantic)
+    return [
+        {
+            "id": b.id,
+            "name": b.name,
+            "tab_id": b.tab_id,
+            "capacity": b.capacity,
+            "slot_count": b.slot_count,
+            "tag_id": b.tag_id,
+            "items_count": b.items_count,
+        }
+        for b in box_query.all()
+    ]
+
+def get_boxes_by_tab_id(db: Session, tab_id: int):
+    """
+    Возвращает все боксы, принадлежащие вкладке с указанным tab_id.
+    Также добавляет в ответ количество айтемов в каждом боксе.
+    """
+    boxes = db.query(models.Box).filter(models.Box.tab_id == tab_id).all()
+
+    # Подсчёт количества айтемов для каждого бокса
+    result = []
+    for box in boxes:
+        items_count = db.query(models.Item).filter(models.Item.box_id == box.id).count()
+        result.append({
+            "id": box.id,
+            "name": box.name,
+            "tab_id": box.tab_id,
+            "capacity": box.capacity,
+            "slot_count": box.slot_count,
+            "color": box.color,
+            # "zone": box.zone,
+            "description": box.description,
+            "tag_id": box.tag_id,
+            "items_count": items_count,
+        })
+
+    return result

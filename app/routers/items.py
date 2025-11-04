@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session, selectinload
 from app.database import get_db
 from app.models import Item
 from typing import List
+from app import schemas, database
+from app.crud import items
 
 router = APIRouter(prefix="/items", tags=["Items"])
 
@@ -13,54 +15,29 @@ def search_items(
     query: str = Query(..., description="Строка поиска (например, 'DDR4')"),
     tab_id: int = Query(..., description="ID вкладки (например, 1 — 'ОЗУ')"),
     limit: int = Query(100, description="Максимум элементов в ответе"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(database.get_db)
 ):
     """
     Быстрый поиск по названию айтема внутри вкладки.
-    Возвращает только совпадения с тегами и ящиками.
+    Возвращает совпадения с информацией о ящике и теге.
     """
+    results = items.search_items(db, query=query, tab_id=tab_id, limit=limit)
+    return {"results": results, "count": len(results)}
 
-    # 🔹 1. Ищем только ID айтемов по названию
-    matching_items = (
-        db.query(Item.id)
-        .filter(Item.tab_id == tab_id)
-        .filter(Item.name.ilike(f"%{query}%"))
-        .limit(limit)
-        .all()
-    )
 
-    if not matching_items:
-        return {"results": []}
 
-    item_ids = [i.id for i in matching_items]
+@router.post("/", response_model=schemas.ItemRead)
+def create_item(item: schemas.ItemCreate, db: Session = Depends(database.get_db)):
+    return items.create_item(db, item)
 
-    # 🔹 2. Подтягиваем найденные айтемы с тегами и ящиками
-    results = (
-        db.query(Item)
-        .options(
-            selectinload(Item.tags),
-            selectinload(Item.box)
-        )
-        .filter(Item.id.in_(item_ids))
-        .all()
-    )
+@router.get("/{box_id}", response_model=List[schemas.ItemRead])
+def get_items(box_id: int, db: Session = Depends(database.get_db)):
+    return items.get_items_by_box(db, box_id)
 
-    # 🔹 3. Собираем удобный JSON-ответ
-    response = [
-        {
-            "id": item.id,
-            "name": item.name,
-            "box": {
-                "id": item.box.id,
-                "name": item.box.name,
-                "color": item.box.color if hasattr(item.box, "color") else None
-            } if item.box else None,
-            "tags": [
-                {"id": t.id, "name": t.name, "color": t.color}
-                for t in item.tags
-            ],
-        }
-        for item in results
-    ]
+@router.put("/{item_id}", response_model=schemas.ItemRead)
+def update_item(item_id: int, item_data: schemas.ItemUpdate, db: Session = Depends(database.get_db)):
+    return items.update_item(db, item_id, item_data)
 
-    return {"results": response, "count": len(response)}
+@router.delete("/{item_id}")
+def delete_item(item_id: int, db: Session = Depends(database.get_db)):
+    return items.delete_item(db, item_id)

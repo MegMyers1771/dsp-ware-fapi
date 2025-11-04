@@ -1,6 +1,6 @@
 from datetime import datetime
 from sqlalchemy import (
-    Column, Integer, String, ForeignKey, DateTime, Boolean, JSON
+    Column, Integer, String, ForeignKey, DateTime, Boolean, JSON, Index
 )
 from sqlalchemy.orm import relationship, declarative_base
 
@@ -14,7 +14,7 @@ class Tag(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
     color = Column(String, default="#cccccc")
-
+    
     # Связи
     tabs = relationship("Tab", back_populates="tag")
     boxes = relationship("Box", back_populates="tag")
@@ -28,11 +28,8 @@ class Tab(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
-    description = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     tag_id = Column(Integer, ForeignKey("tags.id"), nullable=True)
-
+    description = Column(String, nullable=True)
     # Связи
     tag = relationship("Tag", back_populates="tabs")
     boxes = relationship("Box", back_populates="tab", cascade="all, delete")
@@ -49,6 +46,8 @@ class TabField(Base):
     field_type = Column(String, default="string")  # string, int, float, bool, date
     required = Column(Boolean, default=False)
     default_value = Column(String, nullable=True)
+    
+    allowed_values = Column(JSON, nullable=True)
 
     tab = relationship("Tab", back_populates="fields")
 
@@ -62,18 +61,23 @@ class Box(Base):
     capacity = Column(Integer, default=10)
     slot_count = Column(Integer, default=0)
     color = Column(String, nullable=True)
-    zone = Column(String, nullable=True)
+    # zone = Column(String, nullable=True)
     description = Column(String, nullable=True)
     tab_id = Column(Integer, ForeignKey("tabs.id"), nullable=False)
     tag_id = Column(Integer, ForeignKey("tags.id"), nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    # created_at = Column(DateTime, default=datetime.utcnow)
 
     # Связи
     tab = relationship("Tab", back_populates="boxes")
     slots = relationship("Slot", back_populates="box", cascade="all, delete")
     items = relationship("Item", back_populates="box", cascade="all, delete")
     tag = relationship("Tag", back_populates="boxes")
+    
+    # индекс на вкладку
+    __table_args__ = (
+        Index("idx_box_tab_name", "tab_id", "name"),
+    )
 
 
 # --- Slots ---
@@ -101,12 +105,18 @@ class Item(Base):
     position = Column(Integer, nullable=True)
     metadata_json = Column(JSON, default={})
     tab_id = Column(Integer, ForeignKey("tabs.id"), nullable=False)
-    box_id = Column(Integer, ForeignKey("boxes.id"), nullable=True)
+    box_id = Column(Integer, ForeignKey("boxes.id"), nullable=False)
     slot_id = Column(Integer, ForeignKey("slots.id"), nullable=True)
     tag_id = Column(Integer, ForeignKey("tags.id"), nullable=True)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
+    # created_at = Column(DateTime, default=datetime.utcnow)
 
+    tab = relationship("Tab")
     box = relationship("Box", back_populates="items")
     slot = relationship("Slot", back_populates="items")
     tag = relationship("Tag", back_populates="items")
+    
+    # индекс на вкладку
+    __table_args__ = (
+        Index("idx_item_tab_name", "tab_id", "name"),
+    )

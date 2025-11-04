@@ -16,7 +16,7 @@ def setup_data():
     """
     tabs = []
     for name in ["CPU", "RAM"]:
-        r = client.post("/tabs/", json={"name": name, "description": f"{name} components"})
+        r = client.post("/tabs/", json={"name": name, "tag_id": None})
         assert r.status_code == 200
         tabs.append(r.json())
 
@@ -38,8 +38,8 @@ def setup_data():
             box_data = {
                 "name": f"{tab['name']} Box {j+1}",
                 "tab_id": tab["id"],
-                "capacity": 10,
-                "slot_count": 2,
+                "capacity": 26,
+                "slot_count": 0,
                 "tag_id": None,
             }
             r = client.post("/boxes/", json=box_data)
@@ -96,10 +96,13 @@ def test_create_items_with_tags(setup_data):
                 "metadata_json": metadata,
                 "tag_id": tags[0]["id"] if i == 0 and n == 0 else None,
             }
-
+            
+            # print(item_data)
+            
             r = client.post("/items/", json=item_data)
             assert r.status_code == 200, r.text
             created_items.append(r.json())
+            # print(r.json())
 
     # Проверяем, что всего по 3 айтема на бокс
     assert len(created_items) == len(boxes) * 3
@@ -109,6 +112,7 @@ def test_create_items_with_tags(setup_data):
     assert len(tagged_items) == 1
     assert tagged_items[0]["tag_id"] == setup_data["tags"][0]["id"]
 
+    print(created_items[:6])
     # Проверяем, что CPU айтемы содержат нужные поля
     for item in created_items[:6]:
         assert "Frequency" in item["metadata_json"]
@@ -125,11 +129,19 @@ def test_search_by_tab_and_tag(setup_data):
     """
     Проверяем, что поиск по вкладке и тегу работает.
     """
-    tag_id = setup_data["tags"][0]["id"]
     tab_id = setup_data["tabs"][0]["id"]
+    query = "9400F"
 
-    r = client.get(f"/items/search?tab_id={tab_id}&tag_id={tag_id}")
+    r = client.get(f"/items/search?query={query}&tab_id={tab_id}&tag_id={None}")
     assert r.status_code == 200
     items = r.json()
-    assert len(items) == 1
-    assert items[0]["name"].startswith("Item_1_1")
+    assert len(items['results']) == 2
+    assert items['results'][0]["name"].startswith("Intel")
+    
+    tab_id = setup_data["tabs"][1]["id"]
+    query = "8GB"
+    r = client.get(f"/items/search?query={query}&tab_id={tab_id}&tag_id={None}")
+    assert r.status_code == 200
+    items = r.json()
+    assert len(items['results']) == 4
+    assert "8GB" in items['results'][0]["name"]

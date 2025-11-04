@@ -6,3 +6,5 @@ __pycache__/
 .vscode/
 alembic/
 alembic.ini
+test.db
+test-credentials.json

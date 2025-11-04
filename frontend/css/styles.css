@@ -1,0 +1,46 @@
+body {
+  font-family: system-ui, sans-serif;
+  background: #f7f7f7;
+  color: #222;
+}
+
+.container {
+  max-width: 600px;
+  margin: 50px auto;
+  background: #fff;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+form {
+  margin-bottom: 20px;
+}
+
+input, button {
+  padding: 8px 12px;
+  margin-right: 8px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+
+button {
+  background: #007bff;
+  color: white;
+  cursor: pointer;
+  border: none;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th, td {
+  padding: 8px;
+  border-bottom: 1px solid #ddd;
+}
+
+th {
+  background: #eee;
+}
