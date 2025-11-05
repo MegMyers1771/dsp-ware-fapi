@@ -1,4 +1,4 @@
-import { getBoxes, createBox, getTabFields, addItem, API_URL, searchItems } from "./api.js";
+import { getItemsByBox, getBoxes, createBox, getTabFields, addItem, API_URL, searchItems } from "./api.js";
 
 document.addEventListener("DOMContentLoaded", () => {
   const tabId = new URLSearchParams(window.location.search).get("tab_id");
@@ -33,28 +33,60 @@ document.addEventListener("DOMContentLoaded", () => {
       container.innerHTML = `<div class="text-muted">Совпадений не найдено</div>`;
       return;
     }
-    
+
     container.innerHTML = results.map(r => {
-        // Собираем поля metadata_json
-        const meta = r.metadata
-          ? Object.entries(r.metadata)
-              .map(([k, v]) => `<div><small><b>${k}</b>: ${v}</small></div>`)
-              .join("")
-          : "";
-        
-        return `
-          <div class="border p-2 mb-2 bg-white rounded shadow-sm">
-            <div><b>${r.name}</b> → <i>${r.box?.name ?? "—"}</i></div>
-            ${meta}
-          </div>
-        `;
-      }).join("");
+      const meta = r.metadata
+        ? Object.entries(r.metadata)
+            .map(([k, v]) => `<div><small><b>${k}</b>: ${v}</small></div>`)
+            .join("")
+        : "";
+
+      return `
+        <div class="border p-2 mb-2 bg-white rounded shadow-sm">
+          <div><b>${r.name}</b> → <i>${r.box?.name ?? "—"}</i></div>
+          ${meta}
+          ${r.box ? `<button class="btn btn-sm btn-outline-primary mt-2" data-box-id="${r.box.id}">Открыть в ящике</button>` : ""}
+        </div>
+      `;
+    }).join("");
+
+    // навешиваем обработчики на кнопки
+    container.querySelectorAll("[data-box-id]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const boxId = btn.dataset.boxId;
+        await openBoxModal(boxId);
+      });
     });
+  });
 
   // --- Добавление айтема ---
   document.getElementById("addItemForm").addEventListener("submit", handleAddItem);
 });
 
+async function openBoxModal(boxId) {
+  const items = await getItemsByBox(boxId);
+  const content = document.getElementById("boxViewContent");
+
+  if (!items.length) {
+    content.innerHTML = `<div class="text-muted">Ящик пуст</div>`;
+  } else {
+    content.innerHTML = items.map(i => {
+      const meta = i.metadata_json
+        ? Object.entries(i.metadata_json)
+            .map(([k, v]) => `<span class="me-2"><small><b>${k}</b>: ${v}</small></span>`)
+            .join(" | ") // разделитель между парами
+        : "";
+      return `
+        <div class="border rounded p-2 mb-2 bg-light">
+          <b>${i.name}</b><br>
+          <span class="text-muted">${meta}</span>
+        </div>
+      `;
+    }).join("");
+  }
+
+  new bootstrap.Modal(document.getElementById("boxViewModal")).show();
+}
 
 // ---------- Отображение боксов ----------
 async function renderBoxes(tabId) {

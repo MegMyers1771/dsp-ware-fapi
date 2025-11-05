@@ -1,5 +1,11 @@
 export const API_URL = "http://127.0.0.1:8000";
 
+
+export async function getItemsByBox(boxId) {
+  const res = await fetch(`${API_URL}/items/${boxId}`);
+  return await res.json();
+}
+
 // ---- Tabs ----
 export async function fetchTabs() {
   const res = await fetch(`${API_URL}/tabs`);
@@ -74,3 +80,4 @@ export async function searchItems(tabId, query) {
   
   return await res.json();
 }
+
