@@ -21,10 +21,10 @@
 </head>
 <body>
   <div class="container">
-    <h2 class="mb-4">📁 Tabs Overview</h2>
+    <h2 class="mb-4">Главная</h2>
 
     <div class="d-flex justify-content-between mb-3">
-      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createTabModal">➕ New Tab</button>
+      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createTabModal">New Tab</button>
     </div>
 
     <div id="tabs-table"></div>
@@ -73,7 +73,7 @@
             </div>
             <h6>Fields</h6>
             <div id="editFieldsContainer"></div>
-            <button type="button" id="editAddFieldBtn" class="btn btn-outline-secondary btn-sm mt-2">+ Add Field</button>
+            <button type="button" id="editAddFieldBtn" class="btn btn-outline-secondary btn-sm mt-2">Add Field</button>
           </div>
           <div class="modal-footer">
             <button type="submit" class="btn btn-success">Save Changes</button>
@@ -83,6 +83,24 @@
     </div>
   </div>
 
-  <script src="/static/js/api.js"></script>
+  <div class="modal fade" id="addItemModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Add Item</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input id="itemName" class="form-control mb-3" placeholder="Item name">
+          <div id="itemFieldsContainer"></div>
+        </div>
+        <div class="modal-footer">
+          <button id="submitAddItem" class="btn btn-primary">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/static/js/index.js"></script>
 </body>
 </html>

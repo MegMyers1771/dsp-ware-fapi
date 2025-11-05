@@ -48,10 +48,10 @@ class TabUpdate(TabBase):
 # --- Tab fields ---
 class TabFieldBase(BaseModel):
     name: str
-    field_type: Optional[Any] = "string"
-    required: Optional[bool] = False
-    default_value: Optional[Any] = None
-    allowed_values: Optional[List[Any] | Dict[str, Any]] = None
+    # field_type: Optional[str]
+    # required: Optional[bool] = False
+    # default_value: Optional[str] = None
+    allowed_values: Optional[List[Any] | Dict[str, str]] = None
     
     class Config:
         orm_mode = True
@@ -119,13 +119,13 @@ class SlotRead(SlotBase):
 class ItemBase(BaseModel):
     name: str
     qty: int = 1
-    position: Optional[int] = None
+    position: Optional[int] = 1
     metadata_json: Optional[Dict[str, Any]] = {}
     tag_id: Optional[int] = None  # можно задать тег или оставить null
 
 class ItemCreate(ItemBase):
     tab_id: int
-    box_id: Optional[str]
+    box_id: Optional[int]
     slot_id: Optional[int]
 
 class ItemRead(ItemBase):

@@ -18,8 +18,8 @@ def create_item(db: Session, item: schemas.ItemCreate):
     metadata = item.metadata_json.copy()
     
     for f in fields:
-        if f.required and f.name not in metadata:
-            raise HTTPException(status_code=400, detail=f"Missing required field: {f.name}")
+        # if f.required and f.name not in metadata:
+        #     raise HTTPException(status_code=400, detail=f"Missing required field: {f.name}")
         if f.name not in metadata and f.default_value is not None:
             metadata[f.name] = f.default_value
 
@@ -78,6 +78,7 @@ def search_items(db: Session, query: str, tab_id: int, limit: int = 100):
                 "color": getattr(item.box, "color", None)
             } if item.box else None,
             "tag_id": item.tag_id,
+            "metadata": item.metadata_json
         }
         for item in results
     ]

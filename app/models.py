@@ -43,9 +43,9 @@ class TabField(Base):
     id = Column(Integer, primary_key=True)
     tab_id = Column(Integer, ForeignKey("tabs.id"), nullable=False)
     name = Column(String, nullable=False)
-    field_type = Column(String, default="string")  # string, int, float, bool, date
-    required = Column(Boolean, default=False)
-    default_value = Column(String, nullable=True)
+    # field_type = Column(String, default="string")  # string, int, float, bool, date
+    # required = Column(Boolean, default=False)
+    # default_value = Column(String, nullable=True)
     
     allowed_values = Column(JSON, nullable=True)
 
