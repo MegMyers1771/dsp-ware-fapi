@@ -1,4 +1,4 @@
-export const API_URL = "http://127.0.0.1:7878";
+export const API_URL = "http://127.0.0.1:8000";
 
 
 export async function getItemsByBox(boxId) {
