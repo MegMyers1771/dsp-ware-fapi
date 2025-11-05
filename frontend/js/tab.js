@@ -64,6 +64,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 async function openBoxModal(boxId) {
+  
   const items = await getItemsByBox(boxId);
   const content = document.getElementById("boxViewContent");
 
@@ -78,8 +79,8 @@ async function openBoxModal(boxId) {
         : "";
       return `
         <div class="border rounded p-2 mb-2 bg-light">
-          <b>${i.name}</b><br>
-          <span class="text-muted">${meta}</span>
+          
+          <span class="text-muted">${i.name} | ${meta}</span>
         </div>
       `;
     }).join("");
@@ -92,11 +93,10 @@ async function openBoxModal(boxId) {
 async function renderBoxes(tabId) {
   const boxes = await getBoxes(tabId);
 
-  // Очистка контейнера перед перерисовкой
   const tableContainer = document.getElementById("boxesTable");
-  tableContainer.innerHTML = "";
+  tableContainer.innerHTML = ""; // Очистка перед обновлением
 
-  const table = new Tabulator("#boxesTable", {
+  const table = new Tabulator(tableContainer, {
     data: boxes,
     layout: "fitColumns",
     reactiveData: false,
@@ -104,7 +104,14 @@ async function renderBoxes(tabId) {
       { title: "ID", field: "id", width: 60 },
       { title: "Название", field: "name" },
       { title: "Ёмкость", field: "capacity" },
-      { title: "Товаров", field: "items_count", hozAlign: "center" },
+      { title: "Товаров", 
+        field: "items_count", 
+        hozAlign: "center",
+        cellClick: (e, cell) => {
+            e.stopPropagation(); // предотвращаем срабатывание rowClick
+            const box = cell.getRow().getData();
+            openBoxModal(box.id);
+          }, },
       {
         title: "Действие",
         hozAlign: "center",
@@ -112,11 +119,16 @@ async function renderBoxes(tabId) {
         formatter: () =>
           `<button class="btn btn-sm btn-outline-success">➕ Add Item</button>`,
         cellClick: (e, cell) => {
+          e.stopPropagation(); // предотвращаем срабатывание rowClick
           const box = cell.getRow().getData();
           openAddItemModal(box);
         },
       },
     ],
+    rowClick: (e, row) => {
+      const box = row.getData();
+      openBoxModal(box.id);
+    },
   });
 }
 
