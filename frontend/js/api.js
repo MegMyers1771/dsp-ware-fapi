@@ -81,6 +81,10 @@ export async function searchItems(tabId, query) {
   return await res.json();
 }
 
+export async function deleteItem(itemId) {
+  return await fetch(`${API_URL}/items/${itemId}`, { method: "DELETE" });
+}
+
 // ---- Tags ----
 export async function createTag(tagData) {
   const res = await fetch(`${API_URL}/tags`, {

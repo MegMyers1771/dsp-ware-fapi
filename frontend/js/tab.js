@@ -1,4 +1,4 @@
-import { getItemsByBox, getBoxes, createBox, getTabFields, addItem, API_URL, searchItems, createTag, fetchTabs } from "./api.js";
+import { getItemsByBox, getBoxes, createBox, getTabFields, addItem, API_URL, searchItems, createTag, fetchTabs, deleteItem } from "./api.js";
 
 document.addEventListener("DOMContentLoaded", async () => {
   const tabId = new URLSearchParams(window.location.search).get("tab_id");
@@ -132,34 +132,86 @@ async function openBoxModal(boxId, highlightItemId = null) {
   if (!items.length) {
     content.innerHTML = `<div class="text-muted">Ящик пуст</div>`;
   } else {
-    content.innerHTML = items.map(i => {
-      const meta = i.metadata_json
-        ? Object.entries(i.metadata_json)
-            .map(([k, v]) => `<span class="me-2"><small><b>${k}</b>: ${v}</small></span>`)
-            .join(" | ") // разделитель между парами
-        : "";
-      // include data-item-id for highlighting
-      return `
-        <div data-item-id="${i.id}" class="border rounded p-2 mb-2 bg-light">
-          <span class="text-muted">${i.name} | ${meta}</span>
-        </div>
-      `;
-    }).join("");
+    // collect metadata keys across all items to build table columns
+    const metaKeys = Array.from(new Set(items.flatMap(i => Object.keys(i.metadata_json || {}))));
 
-    // if highlightItemId provided, add a visual highlight using Bootstrap success classes
+    // build table header: ID, Name, ...metaKeys, Actions
+    const headers = [
+      { key: '__id', label: 'ID', style: 'width:80px' },
+      { key: '__name', label: 'Название' },
+      ...metaKeys.map(k => ({ key: k, label: k })),
+      { key: '__actions', label: 'Действие', style: 'width:140px', class: 'text-center' }
+    ];
+
+    const esc = (s) => {
+      if (s === null || s === undefined) return '';
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    };
+
+    // calculate a sensible min-width so many columns are visible before horizontal scroll
+    const approxColWidth = 160; // px per column
+    const minWidth = Math.max(600, headers.length * approxColWidth);
+
+    const tableHtml = `
+      <div class="table-responsive">
+        <table class="table table-hover table-sm small" style="min-width:${minWidth}px;">
+          <thead class="table-dark">
+            <tr>
+              ${headers.map(h => `<th ${h.style ? `style="${h.style}"` : ''} ${h.class ? `class="${h.class} text-nowrap"` : `class=\"text-nowrap\"`}>${esc(h.label)}</th>`).join('')}
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map(i => {
+              const rowCells = [];
+              rowCells.push(`<td class="align-middle">${esc(i.id)}</td>`);
+              rowCells.push(`<td class="align-middle">${esc(i.name)}</td>`);
+              metaKeys.forEach(k => rowCells.push(`<td class="align-middle">${esc((i.metadata_json || {})[k])}</td>`));
+              rowCells.push(`<td class="text-center align-middle"><button class="btn btn-sm btn-danger issue-item-btn" data-item-id="${i.id}">Выдать</button></td>`);
+              return `<tr data-item-id="${i.id}">${rowCells.join('')}</tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    content.innerHTML = tableHtml;
+
+    // if highlightItemId provided, highlight the corresponding row
     if (highlightItemId) {
-      // console.log("Highlighting item ID:", highlightItemId);
-      // small timeout to ensure DOM is updated
       setTimeout(() => {
-        const el = content.querySelector(`[data-item-id='${highlightItemId}']`);
-        if (el) {
-          // remove the neutral bg and apply success highlight
-          el.classList.remove('bg-light');
-          el.classList.add('bg-success', 'text-white');
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const row = content.querySelector(`tr[data-item-id='${highlightItemId}']`);
+        if (row) {
+          row.classList.add('table-success');
+          // optional extra contrast
+          row.classList.add('text-white');
+          row.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
       }, 30);
     }
+
+    // attach handlers for issue (delete) buttons
+    content.querySelectorAll('.issue-item-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const itemId = btn.dataset.itemId;
+        if (!itemId) return;
+        if (!confirm('Вы точно хотите выдать этот айтем?')) return;
+        try {
+          const res = await deleteItem(itemId);
+          if (!res.ok) {
+            const txt = await res.text();
+            console.error('Delete failed:', txt);
+            showTopAlert('Ошибка при выдаче айтема', 'danger');
+            return;
+          }
+          showTopAlert('Айтем выдан', 'success');
+          // refresh the box contents
+          await openBoxModal(boxId);
+        } catch (err) {
+          console.error('Delete error:', err);
+          showTopAlert('Ошибка при выдаче айтема', 'danger');
+        }
+      });
+    });
   }
 
   // show without backdrop so add-item modal can remain open in parallel
@@ -169,6 +221,12 @@ async function openBoxModal(boxId, highlightItemId = null) {
   // remove highlight when modal is hidden to reset state for next open
   if (modalEl) {
     modalEl.addEventListener('hidden.bs.modal', () => {
+      // remove table row highlight if present
+      const highlightedRow = content.querySelector('.table-success');
+      if (highlightedRow) {
+        highlightedRow.classList.remove('table-success', 'text-white');
+      }
+      // also remove any div-based highlight (back-compat)
       const highlighted = content.querySelector('.bg-success');
       if (highlighted) {
         highlighted.classList.remove('bg-success', 'text-white');

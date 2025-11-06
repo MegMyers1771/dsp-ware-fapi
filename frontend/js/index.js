@@ -66,6 +66,7 @@ async function renderTabs() {
   const esc = s => (s === null || s === undefined) ? '' : String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
   for (const tab of tabs) {
+    // <button class="btn btn-sm btn-outline-secondary edit-tab-btn">Edit</button>
     const tr = document.createElement('tr');
     tr.dataset.tabId = tab.id;
     tr.innerHTML = `
@@ -74,7 +75,7 @@ async function renderTabs() {
       <td class="text-center">${esc(tab.box_count ?? 0)}</td>
       <td class="text-center">
         <div class="btn-group" role="group">
-          <button class="btn btn-sm btn-outline-secondary edit-tab-btn">Edit</button>
+          
           <button class="btn btn-sm btn-outline-primary open-tab-btn">Open</button>
           <button class="btn btn-sm btn-outline-danger delete-tab-btn">🗑</button>
         </div>
@@ -82,10 +83,10 @@ async function renderTabs() {
     `;
 
     // handlers
-    tr.querySelector('.edit-tab-btn').addEventListener('click', async (e) => {
-      e.stopPropagation();
-      openEditTabModal(tab);
-    });
+    // tr.querySelector('.edit-tab-btn').addEventListener('click', async (e) => {
+    //   e.stopPropagation();
+    //   openEditTabModal(tab);
+    // });
 
     tr.querySelector('.open-tab-btn').addEventListener('click', (e) => {
       e.stopPropagation();

@@ -10,6 +10,38 @@
   <!-- Tabulator removed: using plain Bootstrap tables -->
 
   <!-- custom styles (tabulator styles removed) -->
+  <style rel="stylesheet" href>
+    /* === Центрированная фиксированная модалка === */
+  /* === Центрированная фиксированная модалка === */
+  .modal-dialog {
+    max-width: 1200px;
+    margin: 1.75rem auto; /* центрируем */
+  }
+
+  .modal-wide {
+    width: 1000px;        /* фиксированная ширина */
+    max-width: 95vw;      /* ограничение для малых экранов */
+  }
+
+  .modal-xl-wide {
+    width: 1400px;
+    max-width: 98vw;
+  }
+
+  .modal-content {
+    background-color: #1d1727;
+    color: #fff;
+    border: 1px solid #444;
+    border-radius: 10px;
+  }
+
+  
+  
+
+  
+
+  
+  </style>
 </head>
 <body>
   <nav class="navbar navbar-expand-lg bg-dark" data-bs-theme="dark">
@@ -129,7 +161,7 @@
   </div>
 
   <div class="modal fade" id="boxViewModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable" id="boxViewModalDialog">
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title">Содержимое ящика</h5>
