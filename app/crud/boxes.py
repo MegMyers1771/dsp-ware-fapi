@@ -8,17 +8,6 @@ def create_box(db: Session, box: schemas.BoxCreate):
     db.add(db_box)
     db.commit()
 
-    slot_count = int(db_box.slot_count)
-    
-    if slot_count > 0:
-        for i in range(1, slot_count + 1):
-            slot = models.Slot(
-                box_id=db_box.id,
-                position=i,
-                max_qty=db_box.capacity // db_box.slot_count
-            )
-            db.add(slot)
-        db.commit()
 
     db.refresh(db_box)
     return db_box
@@ -62,8 +51,9 @@ def get_boxes(db: Session):
             models.Box.id,
             models.Box.name,
             models.Box.tab_id,
-            models.Box.capacity,
-            models.Box.slot_count,
+            models.Box.description,
+            # models.Box.capacity,
+            # models.Box.slot_count,
             models.Box.tag_id,
             func.count(models.Item.id).label("items_count")
         )
@@ -78,8 +68,7 @@ def get_boxes(db: Session):
             "id": b.id,
             "name": b.name,
             "tab_id": b.tab_id,
-            "capacity": b.capacity,
-            "slot_count": b.slot_count,
+            "description": b.description,
             "tag_id": b.tag_id,
             "items_count": b.items_count,
         }
@@ -101,10 +90,7 @@ def get_boxes_by_tab_id(db: Session, tab_id: int):
             "id": box.id,
             "name": box.name,
             "tab_id": box.tab_id,
-            "capacity": box.capacity,
-            "slot_count": box.slot_count,
             "color": box.color,
-            # "zone": box.zone,
             "description": box.description,
             "tag_id": box.tag_id,
             "items_count": items_count,
