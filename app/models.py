@@ -60,7 +60,7 @@ class Box(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
     capacity = Column(Integer, default=10)
-    slot_count = Column(Integer, default=0)
+    # slot_count = Column(Integer, default=0)
     color = Column(String, nullable=True)
     # zone = Column(String, nullable=True)
     description = Column(String, nullable=True)

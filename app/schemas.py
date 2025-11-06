@@ -71,8 +71,9 @@ class TabFieldUpdate(TabFieldBase):
 # --- Boxes ---
 class BoxBase(BaseModel):
     name: str
-    capacity: int = 10
-    slot_count: int = 0
+    # capacity: int = 10
+    description: Optional[str] = None
+    # slot_count: int = 0
     tag_id: Optional[int] = None  # теперь можно указать тег
 
 class BoxCreate(BoxBase):
