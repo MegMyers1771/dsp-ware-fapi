@@ -1,119 +1,44 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DSP-Ware — Boxes</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DSP-Ware UI</title>
 
-  <!-- Tailwind -->
-  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Bootstrap -->
+  <link href="/static/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
-  <!-- Flowbite (модалки, кнопки и т.п.) -->
-  <link href="https://cdn.jsdelivr.net/npm/flowbite@2.5.1/dist/flowbite.min.css" rel="stylesheet" />
-  <script src="https://cdn.jsdelivr.net/npm/flowbite@2.5.1/dist/flowbite.min.js"></script>
+  <!-- Tabulator removed: using plain Bootstrap tables -->
 
-  <style>
-    body { background-color: #f9fafb; }
-  </style>
+  <!-- <style>
+    body { background: #f9f9fb; padding: 2rem; }
+    .field-entry { background: #f1f3f5; padding: 10px; border-radius: 8px; margin-bottom: 6px; }
+  </style> -->
 </head>
-<body class="p-6">
-
-  <div class="max-w-6xl mx-auto">
-    <h1 id="tabTitle" class="text-2xl font-bold text-gray-800 mb-6">📦 Вкладка</h1>
-
-    <!-- Панель действий -->
-    <div class="flex justify-between items-center mb-4">
-      <button data-modal-target="addBoxModal" data-modal-toggle="addBoxModal"
-        class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
-        ➕ Добавить ящик
-      </button>
-
-      <div class="flex gap-2 w-1/2">
-        <input id="searchInput" type="text" placeholder="Поиск айтемов..."
-          class="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring focus:ring-blue-200 outline-none">
-        <button id="searchBtn" class="bg-gray-200 hover:bg-gray-300 rounded-lg px-3">🔍</button>
-      </div>
-    </div>
-
-    <!-- Контейнер карточек -->
-    <div id="boxesContainer" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
-
-    <!-- Результаты поиска -->
-    <div class="mt-8">
-      <h2 class="text-lg font-semibold text-gray-700 mb-2">🔎 Результаты поиска</h2>
-      <div id="searchResults" class="bg-white border rounded-lg p-4"></div>
+<body>
+  <nav class="navbar navbar-expand-lg bg-dark" data-bs-theme="dark">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="#">Главная</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarColor02" aria-controls="navbarColor02" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarColor02">
+      <ul class="navbar-nav me-auto">
+        </li>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false">Dropdown</a>
+          <div class="dropdown-menu">
+            <a class="dropdown-item" href="#">Действия</a>
+            <a class="dropdown-item" href="#">Новая вкладка</a>
+            <a class="dropdown-item" href="#">Создать тэг</a>
+            <div class="dropdown-divider"></div>
+            <a class="dropdown-item" href="#">reserved</a>
+          </div>
+        </li>
+      </ul>
     </div>
   </div>
-
-  <!-- Модалка добавления ящика -->
-  <div id="addBoxModal" tabindex="-1" aria-hidden="true"
-       class="hidden overflow-y-auto overflow-x-hidden fixed inset-0 z-50 justify-center items-center w-full h-full">
-    <div class="relative p-4 w-full max-w-md">
-      <div class="relative bg-white rounded-lg shadow">
-        <form id="addBoxForm" class="p-6">
-          <h3 class="text-xl font-semibold mb-4">Добавить ящик</h3>
-
-          <div class="mb-3">
-            <label class="block text-sm font-medium text-gray-700">Название</label>
-            <input id="boxName" type="text" required class="mt-1 w-full border rounded-lg px-3 py-2">
-          </div>
-          <div class="mb-4">
-            <label class="block text-sm font-medium text-gray-700">Вместимость</label>
-            <input id="boxCapacity" type="number" value="20" min="1" class="mt-1 w-full border rounded-lg px-3 py-2">
-          </div>
-
-          <div class="flex justify-end gap-2">
-            <button type="button" data-modal-hide="addBoxModal"
-              class="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200">Отмена</button>
-            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Создать</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-
-  <!-- Модалка добавления айтема -->
-  <div id="addItemModal" tabindex="-1" aria-hidden="true"
-       class="hidden overflow-y-auto fixed inset-0 z-50 justify-center items-center w-full h-full">
-    <div class="relative p-4 w-full max-w-lg">
-      <div class="relative bg-white rounded-lg shadow">
-        <form id="addItemForm" class="p-6">
-          <h3 class="text-xl font-semibold mb-4">Добавить айтем</h3>
-          <input type="hidden" id="itemTabId">
-          <input type="hidden" id="itemBoxId">
-
-          <div class="mb-3">
-            <label class="block text-sm font-medium text-gray-700">Название айтема</label>
-            <input id="itemName" type="text" required class="mt-1 w-full border rounded-lg px-3 py-2">
-          </div>
-
-          <div id="tabFieldsContainer" class="space-y-3"></div>
-
-          <div class="flex justify-end gap-2 mt-4">
-            <button type="button" data-modal-hide="addItemModal"
-              class="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200">Отмена</button>
-            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Добавить</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-
-  <!-- Модалка просмотра содержимого ящика -->
-  <div id="boxViewModal" tabindex="-1" aria-hidden="true"
-       class="hidden overflow-y-auto fixed inset-0 z-50 justify-center items-center w-full h-full">
-    <div class="relative p-4 w-full max-w-3xl">
-      <div class="relative bg-white rounded-lg shadow p-6">
-        <h3 id="boxViewTitle" class="text-xl font-semibold mb-4">Содержимое ящика</h3>
-        <div id="boxViewContent" class="space-y-2 max-h-[60vh] overflow-y-auto"></div>
-        <div class="flex justify-end mt-4">
-          <button type="button" data-modal-hide="boxViewModal"
-            class="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300">Закрыть</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <script type="module" src="/static/js/tab.js"></script>
+</nav>
 </body>
 </html>

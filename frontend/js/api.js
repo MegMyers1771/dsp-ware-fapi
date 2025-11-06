@@ -45,11 +45,11 @@ export async function getBoxes(tabId) {
   return await res.json();
 }
 
-export async function createBox(tabId, name) {
+export async function createBox(tabId, name, description) {
   await fetch(`${API_URL}/boxes`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ tab_id: tabId, name, capacity: 20 }),
+    body: JSON.stringify({ tab_id: tabId, name, description }),
   });
 }
 
@@ -78,6 +78,16 @@ export async function searchItems(tabId, query) {
     return { results: [], count: 0 };
   }
   
+  return await res.json();
+}
+
+// ---- Tags ----
+export async function createTag(tagData) {
+  const res = await fetch(`${API_URL}/tags`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(tagData),
+  });
   return await res.json();
 }
 

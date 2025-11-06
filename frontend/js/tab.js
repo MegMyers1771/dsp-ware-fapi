@@ -1,20 +1,40 @@
-import { getItemsByBox, getBoxes, createBox, getTabFields, addItem, API_URL, searchItems } from "./api.js";
+import { getItemsByBox, getBoxes, createBox, getTabFields, addItem, API_URL, searchItems, createTag, fetchTabs } from "./api.js";
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   const tabId = new URLSearchParams(window.location.search).get("tab_id");
   if (!tabId) return alert("Не указан tab_id");
 
-  document.getElementById("tabTitle").textContent = `📦 Вкладка #${tabId}`;
+  // try to fetch tab name and set titles/brand
+  let tabName = null;
+  try {
+    const tabs = await fetchTabs();
+    const tab = (tabs || []).find(t => String(t.id) === String(tabId));
+    if (tab) tabName = tab.name;
+  } catch (err) {
+    console.warn('Could not fetch tabs for name:', err);
+  }
+
+  const titleText = tabName ? `${tabName}` : `Вкладка #${tabId}`;
+  document.getElementById("tabTitle").textContent = titleText;
+  const brandEl = document.getElementById('tabNavbarBrand');
+  if (brandEl) brandEl.textContent = tabName || `Вкладка #${tabId}`;
+
   renderBoxes(tabId);
+
+  // dropdown quick actions
+  const ddAdd = document.getElementById('dropdown-add-box');
+  if (ddAdd) ddAdd.addEventListener('click', (e) => { e.preventDefault(); new bootstrap.Modal(document.getElementById('addBoxModal')).show(); });
+  const ddTag = document.getElementById('dropdown-create-tag');
+  if (ddTag) ddTag.addEventListener('click', (e) => { e.preventDefault(); new bootstrap.Modal(document.getElementById('createTagModal')).show(); });
 
   // --- Создание ящика ---
   document.getElementById("addBoxForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const name = document.getElementById("boxName").value.trim();
-    const capacity = parseInt(document.getElementById("boxCapacity").value);
+    const description = document.getElementById("boxDescription").value.trim();
     if (!name) return;
 
-    await createBox(tabId, name, capacity);
+    await createBox(tabId, name, description);
     bootstrap.Modal.getInstance(document.getElementById("addBoxModal")).hide();
     document.getElementById("addBoxForm").reset();
     renderBoxes(tabId);
@@ -42,10 +62,10 @@ document.addEventListener("DOMContentLoaded", () => {
         : "";
 
       return `
-        <div class="border p-2 mb-2 bg-white rounded shadow-sm">
+        <div class="border p-2 mb-2 bg-light rounded shadow-sm">
           <div><b>${r.name}</b> → <i>${r.box?.name ?? "—"}</i></div>
           ${meta}
-          ${r.box ? `<button class="btn btn-sm btn-outline-primary mt-2" data-box-id="${r.box.id}">Открыть в ящике</button>` : ""}
+          ${r.box ? `<button class="btn btn-sm btn-success mt-2" data-box-id="${r.box.id}" data-item-id="${r.id}">Открыть в ящике</button>` : ""}
         </div>
       `;
     }).join("");
@@ -54,17 +74,58 @@ document.addEventListener("DOMContentLoaded", () => {
     container.querySelectorAll("[data-box-id]").forEach(btn => {
       btn.addEventListener("click", async () => {
         const boxId = btn.dataset.boxId;
-        await openBoxModal(boxId);
+        const itemId = btn.dataset.itemId || null;
+        await openBoxModal(boxId, itemId);
       });
     });
   });
 
+  // --- Открыть ящик по строке (имя или id) ---
+  const openBoxBtn = document.getElementById("openBoxBtn");
+  if (openBoxBtn) {
+    openBoxBtn.addEventListener("click", async () => {
+      const q = document.getElementById("openBoxInput").value.trim();
+      if (!q) return alert('Введите имя или id ящика');
+
+      const boxes = await getBoxes(tabId);
+      // try id first
+      const byId = boxes.find(b => String(b.id) === q);
+      const byName = boxes.find(b => b.name === q) || boxes.find(b => b.name && b.name.toLowerCase().includes(q.toLowerCase()));
+      const target = byId || byName;
+      if (!target) return alert('Ящик не найден');
+      await openBoxModal(target.id);
+    });
+  }
+
   // --- Добавление айтема ---
   document.getElementById("addItemForm").addEventListener("submit", handleAddItem);
+
+  // make 'Open Box' button inside add-item modal (if present) open the current box
+  const addModalOpenBtn = document.getElementById("addModalOpenBoxBtn");
+  if (addModalOpenBtn) {
+    addModalOpenBtn.addEventListener('click', async () => {
+      const boxId = document.getElementById('itemBoxId').value;
+      if (!boxId) return showTopAlert('Не указан ID ящика', 'danger');
+      await openBoxModal(boxId);
+    });
+  }
+
+  // create tag form (tab page)
+  const createTagForm = document.getElementById("createTagForm");
+  if (createTagForm) createTagForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = document.getElementById("tagName").value.trim();
+    const color = document.getElementById("tagColor").value || null;
+    if (!name) return alert("Введите имя тега");
+
+    await createTag({ name, color });
+    bootstrap.Modal.getInstance(document.getElementById("createTagModal")).hide();
+    document.getElementById("tagName").value = "";
+    document.getElementById("tagColor").value = "#0d6efd";
+  });
 });
 
-async function openBoxModal(boxId) {
-  
+async function openBoxModal(boxId, highlightItemId = null) {
   const items = await getItemsByBox(boxId);
   const content = document.getElementById("boxViewContent");
 
@@ -77,58 +138,119 @@ async function openBoxModal(boxId) {
             .map(([k, v]) => `<span class="me-2"><small><b>${k}</b>: ${v}</small></span>`)
             .join(" | ") // разделитель между парами
         : "";
+      // include data-item-id for highlighting
       return `
-        <div class="border rounded p-2 mb-2 bg-light">
-          
+        <div data-item-id="${i.id}" class="border rounded p-2 mb-2 bg-light">
           <span class="text-muted">${i.name} | ${meta}</span>
         </div>
       `;
     }).join("");
+
+    // if highlightItemId provided, add a visual highlight using Bootstrap success classes
+    if (highlightItemId) {
+      // console.log("Highlighting item ID:", highlightItemId);
+      // small timeout to ensure DOM is updated
+      setTimeout(() => {
+        const el = content.querySelector(`[data-item-id='${highlightItemId}']`);
+        if (el) {
+          // remove the neutral bg and apply success highlight
+          el.classList.remove('bg-light');
+          el.classList.add('bg-success', 'text-white');
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 30);
+    }
   }
 
-  new bootstrap.Modal(document.getElementById("boxViewModal")).show();
+  // show without backdrop so add-item modal can remain open in parallel
+  const modalEl = document.getElementById("boxViewModal");
+  const modal = new bootstrap.Modal(modalEl, { backdrop: false });
+
+  // remove highlight when modal is hidden to reset state for next open
+  if (modalEl) {
+    modalEl.addEventListener('hidden.bs.modal', () => {
+      const highlighted = content.querySelector('.bg-success');
+      if (highlighted) {
+        highlighted.classList.remove('bg-success', 'text-white');
+        highlighted.classList.add('bg-light');
+      }
+    }, { once: true });
+  }
+
+  modal.show();
 }
 
 // ---------- Отображение боксов ----------
 async function renderBoxes(tabId) {
   const boxes = await getBoxes(tabId);
 
-  const tableContainer = document.getElementById("boxesTable");
-  tableContainer.innerHTML = ""; // Очистка перед обновлением
+  // Helper: ensure table body exists (in case HTML changed)
+  let tbody = document.getElementById("boxesTableBody");
+  const container = document.getElementById("boxesTableContainer") || document.getElementById("boxesTable");
+  if (!tbody && container) {
+    container.innerHTML = `
+      <table id="boxesTable" class="table table-hover table-striped">
+        <thead class="table-dark">
+          <tr>
+            <th style="width:80px">ID</th>
+            <th>Название</th>
+            <th>Описание</th>
+            <th style="width:120px" class="text-center">Товаров</th>
+            <th style="width:140px" class="text-center">Действие</th>
+          </tr>
+        </thead>
+        <tbody id="boxesTableBody"></tbody>
+      </table>
+    `;
+    tbody = document.getElementById("boxesTableBody");
+  }
 
-  const table = new Tabulator(tableContainer, {
-    data: boxes,
-    layout: "fitColumns",
-    reactiveData: false,
-    columns: [
-      { title: "ID", field: "id", width: 60 },
-      { title: "Название", field: "name" },
-      { title: "Ёмкость", field: "capacity" },
-      { title: "Товаров", 
-        field: "items_count", 
-        hozAlign: "center",
-        cellClick: (e, cell) => {
-            e.stopPropagation(); // предотвращаем срабатывание rowClick
-            const box = cell.getRow().getData();
-            openBoxModal(box.id);
-          }, },
-      {
-        title: "Действие",
-        hozAlign: "center",
-        width: 160,
-        formatter: () =>
-          `<button class="btn btn-sm btn-outline-success">➕ Add Item</button>`,
-        cellClick: (e, cell) => {
-          e.stopPropagation(); // предотвращаем срабатывание rowClick
-          const box = cell.getRow().getData();
-          openAddItemModal(box);
-        },
-      },
-    ],
-    rowClick: (e, row) => {
-      const box = row.getData();
+  if (!tbody) return; // nothing we can do
+
+  tbody.innerHTML = "";
+
+  if (!boxes || boxes.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="4" class="text-muted">Ящиков нет</td></tr>`;
+    return;
+  }
+
+  // render rows
+  boxes.forEach(box => {
+    const tr = document.createElement('tr');
+    tr.dataset.boxId = box.id;
+
+    // escape helper for safety
+    const esc = (s) => {
+      if (s === null || s === undefined) return '';
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    };
+
+    tr.innerHTML = `
+      <td>${esc(box.id)}</td>
+      <td>${esc(box.name)}</td>
+      <td>${esc(box.description)}</td>
+      <td class="text-center">${esc(box.items_count ?? 0)}</td>
+      <td class="text-center">
+        <button class="btn btn-sm btn-outline-success add-item-btn">➕ Add Item</button>
+      </td>
+    `;
+
+    // row click opens box (unless click was on button)
+    tr.addEventListener('click', (e) => {
+      if (e.target.closest('.add-item-btn')) return; // handled below
       openBoxModal(box.id);
-    },
+    });
+
+    // add-item button
+    const addBtn = tr.querySelector('.add-item-btn');
+    if (addBtn) {
+      addBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openAddItemModal(box);
+      });
+    }
+
+    tbody.appendChild(tr);
   });
 }
 
@@ -169,20 +291,25 @@ async function openAddItemModal(box) {
     input.dataset.fieldName = f.name;
     input.placeholder = "Введите значение или выберите из списка";
     input.setAttribute("list", `datalist-${i}`);
-
-    // datalist, если есть варианты
-    if (Array.isArray(f.allowed_values) && f.allowed_values.length > 0) {
-      const datalist = document.createElement("datalist");
-      datalist.id = `datalist-${i}`;
-
-      f.allowed_values.forEach(val => {
-        const option = document.createElement("option");
-        option.value = val;
-        datalist.appendChild(option);
-      });
-
-      wrapper.appendChild(datalist);
+    if (f.strong) {
+      input.dataset.strong = "1";
     }
+
+      // datalist, если есть варианты — добавляем только примитивные значения (убираем словари)
+      if (Array.isArray(f.allowed_values) && f.allowed_values.length > 0) {
+        const datalist = document.createElement("datalist");
+        datalist.id = `datalist-${i}`;
+        // attach allowed values for validation when strong is set
+        const allowedPrimitives = (f.allowed_values || []).filter(v => (typeof v === 'string' || typeof v === 'number'));
+        input.dataset.allowed = JSON.stringify(allowedPrimitives || []);
+        allowedPrimitives.forEach(val => {
+          const option = document.createElement("option");
+          option.value = String(val);
+          datalist.appendChild(option);
+        });
+
+        wrapper.appendChild(datalist);
+      }
 
     wrapper.appendChild(input);
     container.appendChild(wrapper);
@@ -201,12 +328,29 @@ async function handleAddItem(e) {
   const box_id = parseInt(document.getElementById("itemBoxId").value);
   const name = document.getElementById("itemName").value.trim();
   const metadata_json = {};
+  const errors = [];
 
   document.querySelectorAll("#tabFieldsContainer [data-field-name]").forEach(el => {
     const key = el.dataset.fieldName;
     const val = el.value.trim();
+    // strong enforcement: if field is strong and input value is not one of allowed, error
+    if (el.dataset.strong && el.dataset.allowed) {
+      const allowed = JSON.parse(el.dataset.allowed);
+      if (val && !allowed.includes(val)) {
+        errors.push(`Поле \"${key}\" должно иметь одно из значений: ${allowed.join(', ')}`);
+      }
+    }
     if (val) metadata_json[key] = val;
   });
+
+  // If both name and metadata are empty -> error
+  if (!name && Object.keys(metadata_json).length === 0) {
+    return showTopAlert('Заполните имя или хотя бы одно значение атрибутов', 'danger');
+  }
+
+  if (errors.length) {
+    return showTopAlert(errors.join('; '), 'danger');
+  }
 
   const itemPayload = {
     name,
@@ -230,12 +374,15 @@ async function handleAddItem(e) {
   if (!res.ok) {
     const err = await res.text();
     console.error("❌ Ошибка добавления:", err);
-    showToast("Ошибка при добавлении", "danger");
+    showTopAlert("Ошибка при добавлении", "danger");
     return;
   }
 
-  showToast("Айтем добавлен", "success");
-  bootstrap.Modal.getInstance(document.getElementById("addItemModal")).hide();
+  // success — clear inputs but keep modal open
+  showTopAlert("Айтем добавлен", "success");
+  document.getElementById('itemName').value = '';
+  document.querySelectorAll('#tabFieldsContainer [data-field-name]').forEach(el => el.value = '');
+  // refresh box/table data in background
   renderBoxes(tab_id);
 }
 
@@ -254,4 +401,24 @@ function showToast(message, type = "info") {
   document.body.appendChild(toast);
 
   setTimeout(() => toast.remove(), 3500);
+}
+
+// More visible alert at the top of the page
+function showTopAlert(message, type = 'danger', timeout = 4000) {
+  // ensure only one top alert at a time
+  const existing = document.getElementById('topAlert');
+  if (existing) existing.remove();
+
+  const alert = document.createElement('div');
+  alert.id = 'topAlert';
+  alert.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x m-3`;
+  alert.style.zIndex = 1080;
+  alert.role = 'alert';
+  alert.innerHTML = `
+    <div>${message}</div>
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+  `;
+
+  document.body.appendChild(alert);
+  if (timeout) setTimeout(() => alert.remove(), timeout);
 }

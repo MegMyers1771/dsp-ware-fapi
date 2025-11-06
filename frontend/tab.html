@@ -5,39 +5,76 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>DSP-Ware — Boxes</title>
 
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://unpkg.com/tabulator-tables@6.2.1/dist/css/tabulator_bootstrap5.min.css" rel="stylesheet">
-  <script src="https://unpkg.com/tabulator-tables@6.2.1/dist/js/tabulator.min.js"></script>
+  <!-- <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"> -->
+  <link rel="stylesheet" href="/static/css/bootstrap.min.css">
+  <!-- Tabulator removed: using plain Bootstrap tables -->
 
-  <style>
-    body { background: #f7f8fa; padding: 2rem; }
-    .tabulator { border-radius: 10px; }
-  </style>
+  <!-- custom styles (tabulator styles removed) -->
 </head>
 <body>
+  <nav class="navbar navbar-expand-lg bg-dark" data-bs-theme="dark">
+    <div class="container-fluid">
+      <a id="tabNavbarBrand" class="navbar-brand" href="/">Имя вкладки</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarColor02" aria-controls="navbarColor02" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarColor02">
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+          <li class="nav-item">
+            <a class="nav-link active" href="/">Главная
+              <span class="visually-hidden">(current)</span>
+            </a>
+          </li>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false">Действия</a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" href="#" id="dropdown-add-box">Добавить ящик</a></li>
+              <li><a class="dropdown-item" href="#" id="dropdown-create-tag">Создать тэг</a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="#">reserved</a></li>
+            </ul>
+          </li>
+        </ul>
+
+        <form class="d-flex me-2" role="search" onsubmit="event.preventDefault(); document.getElementById('searchBtn').click();">
+          <input id="searchInput" class="form-control me-2" type="search" placeholder="Поиск айтемов" aria-label="Search">
+          <button id="searchBtn" class="btn btn-secondary my-2 my-sm-0" type="button">Поиск</button>
+        </form>
+      </div>
+    </div>
+  </nav>
+
   <div class="container">
     <h2 id="tabTitle" class="mb-4 text-primary">Таблица загружается...</h2>
 
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addBoxModal">Добавить ящик</button>
+    <div class="mb-3"></div>
 
-      <div class="input-group w-50">
-        <input id="searchInput" class="form-control" placeholder="Поиск по названию..." />
-        <button id="searchBtn" class="btn btn-outline-secondary">🔍</button>
-      </div>
+    <div id="boxesTableContainer">
+      <table id="boxesTable" class="table table-hover table-striped">
+        <thead class="table-dark">
+          <tr>
+            <th style="width:80px">ID</th>
+            <th>Название</th>
+            <th>Описание</th>
+            <th style="width:120px" class="text-center">Товаров</th>
+            <th style="width:140px" class="text-center">Действие</th>
+          </tr>
+        </thead>
+        <tbody id="boxesTableBody">
+          <!-- rows injected by JS -->
+        </tbody>
+      </table>
     </div>
-
-    <div id="boxesTable"></div>
 
     <div class="mt-4">
       <h5>Результат поиска</h5>
-      <div id="searchResults" class="border rounded bg-white p-2"></div>
+      <div id="searchResults" class="border rounded bg-black p-2"></div>
     </div>
   </div>
 
   <!-- 🔹 Модалка добавления ящика -->
   <div class="modal fade" id="addBoxModal" tabindex="-1" aria-labelledby="addBoxModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-dialog-scrollable">
       <div class="modal-content">
         <form id="addBoxForm">
           <div class="modal-header">
@@ -50,8 +87,8 @@
               <input type="text" id="boxName" class="form-control" placeholder="" required />
             </div>
             <div class="mb-3">
-              <label class="form-label">Вместимость</label>
-              <input type="number" id="boxCapacity" class="form-control" value="20" min="1" max="1000" />
+              <label class="form-label">Описание</label>
+              <input type="text" id="boxDescription" class="form-control" placeholder="" required />
             </div>
           </div>
           <div class="modal-footer">
@@ -65,7 +102,7 @@
 
   <!-- 🔹 Модалка добавления айтема -->
   <div class="modal fade" id="addItemModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
       <div class="modal-content">
         <form id="addItemForm">
           <div class="modal-header">
@@ -83,6 +120,7 @@
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+            <button type="button" id="addModalOpenBoxBtn" class="btn btn-outline-primary">Открыть ящик</button>
             <button type="submit" class="btn btn-primary">Добавить</button>
           </div>
         </form>
@@ -91,7 +129,7 @@
   </div>
 
   <div class="modal fade" id="boxViewModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title">Содержимое ящика</h5>
@@ -108,6 +146,34 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- Create Tag Modal (shared) -->
+  <div class="modal fade" id="createTagModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content">
+        <form id="createTagForm">
+          <div class="modal-header">
+            <h5 class="modal-title">Create Tag</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label">Tag name</label>
+              <input id="tagName" class="form-control" required />
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Color</label>
+              <input id="tagColor" type="color" class="form-control form-control-color" value="#0d6efd" title="Choose tag color">
+            </div>
+            <!-- attaching tags to objects will be implemented later -->
+          </div>
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-success">Create Tag</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <script type="module" src="/static/js/tab.js?v=6"></script>
 
 </body>

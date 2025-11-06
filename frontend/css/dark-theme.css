@@ -1,0 +1,82 @@
+/* Dark theme for DSP-Ware — purple / dark-blue palette */
+:root{
+  --bg:#0b1020; /* page background */
+  --panel:#0f1724; /* cards, modals */
+  --muted:#98a0b3; /* muted text */
+  --text:#e6eef8; /* main text */
+  --primary:#7c3aed; /* purple */
+  --primary-600:#5b21b6;
+  --accent:#1e3a8a; /* dark-blue */
+  --success:#16a34a;
+  --danger:#ef4444;
+  --glass: rgba(255,255,255,0.03);
+}
+
+/* Page background and container */
+body{
+  background: linear-gradient(180deg, #071028 0%, #071026 60%);
+  color:var(--text);
+}
+.container{ background: transparent; }
+
+/* Tabulator styles removed */
+
+/* Cards / panels */
+.card, .border, .modal-content, .toast, .alert{
+  background: linear-gradient(180deg, var(--panel), rgba(15,23,36,0.9));
+  color:var(--text);
+  border: 1px solid rgba(255,255,255,0.04);
+}
+
+/* Buttons */
+.btn-primary{
+  background: var(--primary);
+  border-color: var(--primary-600);
+  color: #fff;
+}
+.btn-primary:hover{ background: var(--primary-600); }
+.btn-outline-primary{
+  color: var(--primary);
+  border-color: rgba(124,58,237,0.25);
+}
+.btn-outline-secondary{ color:var(--muted); border-color: rgba(255,255,255,0.04); }
+
+/* Form controls */
+.form-control{
+  background: rgba(255,255,255,0.03);
+  color:var(--text);
+  border: 1px solid rgba(255,255,255,0.04);
+}
+.form-control::placeholder{ color: rgba(230,238,248,0.45); }
+.form-select{ background: rgba(255,255,255,0.03); color:var(--text); }
+
+/* Modals */
+.modal-content{ box-shadow: 0 10px 30px rgba(2,6,23,0.7); }
+.modal-backdrop.show{ background: rgba(3,6,23,0.6); }
+
+/* Table / list items */
+.bg-white, .bg-light{ background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); color:var(--text); }
+
+/* Alerts / toasts */
+.toast{ box-shadow: 0 6px 20px rgba(2,6,23,0.6); }
+.alert{ border-color: rgba(255,255,255,0.03); }
+.alert-danger{ background: linear-gradient(90deg, rgba(239,68,68,0.12), rgba(0,0,0,0.05)); color:#ffdede; }
+.alert-success{ background: linear-gradient(90deg, rgba(16,185,129,0.08), rgba(0,0,0,0.03)); color:#ddffec; }
+
+/* Small UI tweaks */
+.btn-close{ filter: invert(1) brightness(1.2); }
+label, .form-label, h5, h6{ color: var(--text); }
+
+/* inputs of type color appear as circle — make text white around it */
+.form-control-color{ padding: 0.15rem 0.6rem; height: 2.4rem; }
+
+/* ensure anchors and small text are visible */
+a, small{ color: var(--muted); }
+
+/* highlighted item style (used by JS) */
+[data-item-id].highlighted{ background: #fff3bf; border-color: #ffc107; }
+
+/* responsive safe spacing for top alert */
+#topAlert{ max-width: 90%; }
+
+/* end of theme */
