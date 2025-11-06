@@ -48,9 +48,7 @@ class TabUpdate(TabBase):
 # --- Tab fields ---
 class TabFieldBase(BaseModel):
     name: str
-    # field_type: Optional[str]
-    # required: Optional[bool] = False
-    # default_value: Optional[str] = None
+    strong: bool = False  # если true, то значение должно быть из allowed_values
     allowed_values: Optional[List[Any] | Dict[str, str]] = None
     
     class Config:

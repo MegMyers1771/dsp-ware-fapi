@@ -48,6 +48,7 @@ class TabField(Base):
     # default_value = Column(String, nullable=True)
     
     allowed_values = Column(JSON, nullable=True)
+    strong = Column(Boolean, default=False)  # если true, то значение должно быть из allowed_values
 
     tab = relationship("Tab", back_populates="fields")
 
