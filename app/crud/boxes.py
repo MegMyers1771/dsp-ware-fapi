@@ -4,7 +4,7 @@ from sqlalchemy import func
 from fastapi import HTTPException
 
 def create_box(db: Session, box: schemas.BoxCreate):
-    db_box = models.Box(**box.dict())
+    db_box = models.Box(**box.model_dump())
     db.add(db_box)
     db.commit()
 
@@ -52,9 +52,7 @@ def get_boxes(db: Session):
             models.Box.name,
             models.Box.tab_id,
             models.Box.description,
-            # models.Box.capacity,
-            # models.Box.slot_count,
-            models.Box.tag_id,
+            models.Box.tag_ids,
             func.count(models.Item.id).label("items_count")
         )
         .outerjoin(models.Item, models.Item.box_id == models.Box.id)
@@ -69,7 +67,7 @@ def get_boxes(db: Session):
             "name": b.name,
             "tab_id": b.tab_id,
             "description": b.description,
-            "tag_id": b.tag_id,
+            "tag_ids": b.tag_ids or [],
             "items_count": b.items_count,
         }
         for b in box_query.all()
@@ -92,7 +90,7 @@ def get_boxes_by_tab_id(db: Session, tab_id: int):
             "tab_id": box.tab_id,
             "color": box.color,
             "description": box.description,
-            "tag_id": box.tag_id,
+            "tag_ids": box.tag_ids or [],
             "items_count": items_count,
         })
 

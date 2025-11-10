@@ -1,6 +1,26 @@
+from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
 from fastapi import HTTPException
 from app import models, schemas
+
+
+def _get_next_box_position(db: Session, box_id: int) -> int:
+    max_position = (
+        db.query(func.max(models.Item.box_position))
+        .filter(models.Item.box_id == box_id)
+        .scalar()
+    )
+    return (max_position or 0) + 1
+
+
+def _compress_box_positions(db: Session, box_id: int, from_position: int) -> None:
+    db.query(models.Item).filter(
+        models.Item.box_id == box_id,
+        models.Item.box_position > from_position,
+    ).update(
+        {models.Item.box_position: models.Item.box_position - 1},
+        synchronize_session=False,
+    )
 
 
 def create_item(db: Session, item: schemas.ItemCreate):
@@ -15,7 +35,10 @@ def create_item(db: Session, item: schemas.ItemCreate):
     if not item.position:
         raise HTTPException(status_code=400, detail="Position is required")
 
-    metadata = item.metadata_json.copy()
+    if not item.box_id:
+        raise HTTPException(status_code=400, detail="Box is required")
+
+    metadata = (item.metadata_json or {}).copy()
     
     for f in fields:
         # if f.required and f.name not in metadata:
@@ -23,13 +46,15 @@ def create_item(db: Session, item: schemas.ItemCreate):
         if f.name not in metadata and f.default_value is not None:
             metadata[f.name] = f.default_value
 
+    next_position = _get_next_box_position(db, item.box_id)
+
     new_item = models.Item(
         name=item.name,
         tab_id=item.tab_id,
         box_id=item.box_id,
-        tag_id=item.tag_id,
-        slot_id=item.slot_id,
-        metadata_json=metadata
+        metadata_json=metadata,
+        box_position=next_position,
+        tag_ids=list(item.tag_ids or []),
     )
     db.add(new_item)
     db.commit()
@@ -39,7 +64,7 @@ def create_item(db: Session, item: schemas.ItemCreate):
 def search_items(db: Session, query: str, tab_id: int, limit: int = 100):
     """
     Ищет айтемы по названию в заданной вкладке.
-    Возвращает список объектов с данными по ящику и тегу.
+    Возвращает список объектов с данными по ящику и прикреплённым тегам.
     """
 
     # 🔹 1. Ищем только ID совпадений по названию
@@ -59,10 +84,7 @@ def search_items(db: Session, query: str, tab_id: int, limit: int = 100):
     # 🔹 2. Подтягиваем найденные айтемы с боксами и тегами
     results = (
         db.query(models.Item)
-        .options(
-            selectinload(models.Item.box),
-            selectinload(models.Item.tag)
-        )
+        .options(selectinload(models.Item.box))
         .filter(models.Item.id.in_(item_ids))
         .all()
     )
@@ -77,7 +99,7 @@ def search_items(db: Session, query: str, tab_id: int, limit: int = 100):
                 "name": item.box.name,
                 "color": getattr(item.box, "color", None)
             } if item.box else None,
-            "tag_id": item.tag_id,
+            "tag_ids": item.tag_ids or [],
             "metadata": item.metadata_json
         }
         for item in results
@@ -93,8 +115,26 @@ def update_item(db: Session, item_id: int, item_data: schemas.ItemUpdate):
     if not db_item:
         raise HTTPException(status_code=404, detail="Item not found")
 
-    for key, value in item_data.dict(exclude_unset=True).items():
+    payload = item_data.dict(exclude_unset=True)
+    payload.pop("box_position", None)
+    if "tag_ids" in payload and payload["tag_ids"] is not None:
+        payload["tag_ids"] = list(payload["tag_ids"])
+
+    old_box_id = db_item.box_id
+    old_position = db_item.box_position
+    new_box_id = payload.get("box_id", old_box_id)
+    box_changed = new_box_id != old_box_id
+
+    next_position = db_item.box_position
+    if box_changed:
+        _compress_box_positions(db, old_box_id, old_position)
+        next_position = _get_next_box_position(db, new_box_id)
+
+    for key, value in payload.items():
         setattr(db_item, key, value)
+
+    if box_changed:
+        db_item.box_position = next_position
 
     db.commit()
     db.refresh(db_item)
@@ -105,10 +145,18 @@ def delete_item(db: Session, item_id: int):
     if not db_item:
         raise HTTPException(status_code=404, detail="Item not found")
 
+    box_id = db_item.box_id
+    deleted_position = db_item.box_position
+
     db.delete(db_item)
+    _compress_box_positions(db, box_id, deleted_position)
     db.commit()
     return {"detail": f"Item {item_id} deleted"}
 
 def get_items_by_box(db: Session, box_id: int):
-    return db.query(models.Item).filter(models.Item.box_id == box_id).all()
-
+    return (
+        db.query(models.Item)
+        .filter(models.Item.box_id == box_id)
+        .order_by(models.Item.box_position.asc())
+        .all()
+    )

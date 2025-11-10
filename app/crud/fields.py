@@ -9,7 +9,7 @@ def create_tab_field(db: Session, field: schemas.TabFieldCreate):
     if not tab:
         raise HTTPException(status_code=404, detail="Tab not found")
 
-    db_field = models.TabField(**field.dict())
+    db_field = models.TabField(**field.model_dump())
     db.add(db_field)
     db.commit()
     db.refresh(db_field)

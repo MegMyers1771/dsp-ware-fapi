@@ -20,7 +20,8 @@ def get_tabs(db: Session):
             "name": tab.name,
             "box_count": boxes_count,
             "description": tab.description,
-            "fields": fields
+            "fields": fields,
+            "tag_ids": tab.tag_ids or [],
         })
     return result
 
@@ -48,7 +49,8 @@ def get_tab(db: Session, tab_id: int):
         "name": tab.name,
         "description": tab.description,
         "box_count": boxes_count,
-        "fields": fields
+        "fields": fields,
+        "tag_ids": tab.tag_ids or [],
     }
 
 
