@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app import models, schemas
 from fastapi import HTTPException
 from typing import Dict, Optional, Iterable, List
+from app.crud.utils import ensure_unique_name
 
 ENTITY_MODELS = {
     "tab_id": (models.Tab, "Tab"),
@@ -105,6 +106,7 @@ def _reset_legacy_links(db_tag: models.Tag):
 
 
 def create_tag(db: Session, tag: schemas.TagCreate):
+    ensure_unique_name(db, models.Tag, tag.name, "Тэг")
     payload = tag.model_dump()
     link_payload = {k: payload.pop(k) for k in ENTITY_MODELS.keys()}
 
@@ -148,6 +150,16 @@ def update_tag(db: Session, tag_id: int, tag_data: schemas.TagUpdate):
         raise HTTPException(status_code=404, detail="Tag not found")
 
     payload = tag_data.model_dump(exclude_unset=True)
+
+    if "name" in payload:
+        ensure_unique_name(
+            db,
+            models.Tag,
+            payload["name"],
+            "Tag",
+            exclude_id=tag_id,
+        )
+
     link_payload = {k: payload.pop(k) for k in list(payload.keys()) if k in ENTITY_MODELS}
 
     for key, value in payload.items():

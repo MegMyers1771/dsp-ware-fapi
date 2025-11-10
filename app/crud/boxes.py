@@ -1,9 +1,26 @@
+from typing import Optional
 from sqlalchemy.orm import Session
 from app import models, schemas
 from sqlalchemy import func
 from fastapi import HTTPException
 
+
+def _ensure_unique_box_name(db: Session, name: str, *, exclude_id: Optional[int] = None):
+    query = db.query(models.Box).filter(func.lower(models.Box.name) == func.lower(name))
+    if exclude_id is not None:
+        query = query.filter(models.Box.id != exclude_id)
+
+    existing = query.first()
+    if existing:
+        tab = db.query(models.Tab).filter(models.Tab.id == existing.tab_id).first()
+        tab_name = getattr(tab, "name", f"#{existing.tab_id}")
+        raise HTTPException(
+            status_code=400,
+            detail=f'Box "{existing.name}" уже существует в "{tab_name}"',
+        )
+
 def create_box(db: Session, box: schemas.BoxCreate):
+    _ensure_unique_box_name(db, box.name)
     db_box = models.Box(**box.model_dump())
     db.add(db_box)
     db.commit()
@@ -20,7 +37,12 @@ def update_box(db: Session, box_id: int, box_data: schemas.BoxUpdate):
     if not db_box:
         raise HTTPException(status_code=404, detail="Box not found")
 
-    for key, value in box_data.dict(exclude_unset=True).items():
+    payload = box_data.model_dump(exclude_unset=True)
+
+    if "name" in payload:
+        _ensure_unique_box_name(db, payload["name"], exclude_id=box_id)
+
+    for key, value in payload.items():
         setattr(db_box, key, value)
 
     db.commit()

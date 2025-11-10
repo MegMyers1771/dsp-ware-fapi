@@ -1,7 +1,9 @@
+from typing import List
 from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
 from fastapi import HTTPException
 from app import models, schemas
+from app.crud.utils import ensure_unique_name
 
 
 def _get_next_box_position(db: Session, box_id: int) -> int:
@@ -37,6 +39,14 @@ def create_item(db: Session, item: schemas.ItemCreate):
 
     if not item.box_id:
         raise HTTPException(status_code=400, detail="Box is required")
+
+    # ensure_unique_name(
+    #     db,
+    #     models.Item,
+    #     item.name,
+    #     "Айтем",
+    #     extra_filters=[models.Item.box_id == item.box_id],
+    # )
 
     metadata = (item.metadata_json or {}).copy()
     
@@ -115,7 +125,7 @@ def update_item(db: Session, item_id: int, item_data: schemas.ItemUpdate):
     if not db_item:
         raise HTTPException(status_code=404, detail="Item not found")
 
-    payload = item_data.dict(exclude_unset=True)
+    payload = item_data.model_dump(exclude_unset=True)
     payload.pop("box_position", None)
     if "tag_ids" in payload and payload["tag_ids"] is not None:
         payload["tag_ids"] = list(payload["tag_ids"])
@@ -124,6 +134,17 @@ def update_item(db: Session, item_id: int, item_data: schemas.ItemUpdate):
     old_position = db_item.box_position
     new_box_id = payload.get("box_id", old_box_id)
     box_changed = new_box_id != old_box_id
+
+    target_name = payload.get("name", db_item.name)
+
+    ensure_unique_name(
+        db,
+        models.Item,
+        target_name,
+        "Item",
+        extra_filters=[models.Item.box_id == new_box_id],
+        exclude_id=item_id,
+    )
 
     next_position = db_item.box_position
     if box_changed:
@@ -160,3 +181,34 @@ def get_items_by_box(db: Session, box_id: int):
         .order_by(models.Item.box_position.asc())
         .all()
     )
+
+
+def reorder_items(db: Session, box_id: int, ordered_ids: List[int]):
+    if not ordered_ids:
+        raise HTTPException(status_code=400, detail="ordered_ids must not be empty")
+
+    items_in_box = (
+        db.query(models.Item)
+        .filter(models.Item.box_id == box_id)
+        .order_by(models.Item.box_position.asc())
+        .all()
+    )
+
+    if not items_in_box:
+        raise HTTPException(status_code=404, detail="Box has no items to reorder")
+
+    existing_ids = [item.id for item in items_in_box]
+    if len(existing_ids) != len(ordered_ids):
+        raise HTTPException(status_code=400, detail="ordered_ids count mismatch")
+
+    if set(existing_ids) != set(ordered_ids):
+        raise HTTPException(status_code=400, detail="ordered_ids must include every item in box exactly once")
+
+    id_to_item = {item.id: item for item in items_in_box}
+
+    for position, item_id in enumerate(ordered_ids, start=1):
+        id_to_item[item_id].box_position = position
+
+    db.commit()
+
+    return sorted(items_in_box, key=lambda item: item.box_position)

@@ -1,8 +1,10 @@
 from sqlalchemy.orm import Session
 from app import models, schemas
 from fastapi import HTTPException
+from app.crud.utils import ensure_unique_name
 
 def create_tab(db: Session, tab: schemas.TabCreate):
+    ensure_unique_name(db, models.Tab, tab.name, "Tab")
     db_tab = models.Tab(**tab.model_dump())
     db.add(db_tab)
     db.commit()
@@ -22,6 +24,7 @@ def get_tabs(db: Session):
             "description": tab.description,
             "fields": fields,
             "tag_ids": tab.tag_ids or [],
+            "enable_pos": bool(tab.enable_pos),
         })
     return result
 
@@ -30,7 +33,18 @@ def update_tab(db: Session, tab_id: int, tab_data: schemas.TabUpdate):
     if not db_tab:
         raise HTTPException(status_code=404, detail="Tab not found")
 
-    for key, value in tab_data.dict(exclude_unset=True).items():
+    payload = tab_data.model_dump(exclude_unset=True)
+
+    if "name" in payload:
+        ensure_unique_name(
+            db,
+            models.Tab,
+            payload["name"],
+            "Вкладка",
+            exclude_id=tab_id,
+        )
+
+    for key, value in payload.items():
         setattr(db_tab, key, value)
 
     db.commit()
@@ -51,6 +65,7 @@ def get_tab(db: Session, tab_id: int):
         "box_count": boxes_count,
         "fields": fields,
         "tag_ids": tab.tag_ids or [],
+        "enable_pos": bool(tab.enable_pos),
     }
 
 
