@@ -18,6 +18,23 @@ export async function createTab(tabData) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(tabData),
   });
+
+  if (res.status === 400) {
+    let payload;
+    try {
+      payload = await res.json();
+    } catch (err) {
+      payload = null;
+    }
+    const message = payload?.detail || "Не удалось создать вкладку";
+    throw new Error(message);
+  }
+
+  if (!res.ok) {
+    const fallback = await res.text();
+    throw new Error(fallback || "Ошибка при создании вкладки");
+  }
+
   return await res.json();
 }
 
@@ -46,11 +63,29 @@ export async function getBoxes(tabId) {
 }
 
 export async function createBox(tabId, name, description) {
-  await fetch(`${API_URL}/boxes`, {
+  const res = await fetch(`${API_URL}/boxes`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ tab_id: tabId, name, description }),
   });
+
+  if (res.status === 400) {
+    let payload;
+    try {
+      payload = await res.json();
+    } catch {
+      payload = null;
+    }
+    const message = payload?.detail || "Не удалось создать ящик";
+    throw new Error(message);
+  }
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Ошибка при создании ящика");
+  }
+
+  return await res.json();
 }
 
 // ---- Items ----
@@ -85,6 +120,21 @@ export async function deleteItem(itemId) {
   return await fetch(`${API_URL}/items/${itemId}`, { method: "DELETE" });
 }
 
+export async function reorderItems(boxId, orderedIds) {
+  const res = await fetch(`${API_URL}/items/reorder`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ box_id: boxId, ordered_ids: orderedIds }),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Не удалось сохранить порядок айтемов");
+  }
+
+  return await res.json();
+}
+
 // ---- Tags ----
 export async function createTag(tagData) {
   const res = await fetch(`${API_URL}/tags`, {
@@ -93,7 +143,21 @@ export async function createTag(tagData) {
     body: JSON.stringify(tagData),
   });
 
-  // console.log(res.json())
+  if (res.status === 400) {
+    let payload;
+    try {
+      payload = await res.json();
+    } catch {
+      payload = null;
+    }
+    const message = payload?.detail || "Не удалось создать тэг";
+    throw new Error(message);
+  }
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Ошибка при создании тэга");
+  }
 
   return await res.json();
 }

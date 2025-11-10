@@ -134,14 +134,19 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (!name) return alert("Введите имя тега");
 
-    await createTag({ name, color, box_id, tab_id, item_id });
-    showTopAlert('Тэг ' + name + ' добавлен', "success");
-    tagOffcanvasInstance?.hide();
-    document.getElementById("tagName").value = "";
-    document.getElementById("tagColor").value = "#0d6efd";
-    await refreshTagCache(true);
-    renderExistingTagPills();
-    await renderTabs();
+    try {
+      await createTag({ name, color, box_id, tab_id, item_id });
+      showTopAlert('Тэг ' + name + ' добавлен', "success");
+      tagOffcanvasInstance?.hide();
+      document.getElementById("tagName").value = "";
+      document.getElementById("tagColor").value = "#0d6efd";
+      await refreshTagCache(true);
+      renderExistingTagPills();
+      await renderTabs();
+    } catch (err) {
+      console.error("Не удалось создать тэг", err);
+      showTopAlert(err?.message || "Не удалось создать тэг", "danger", 5000);
+    }
   });
 
   // dropdown quick actions in navbar
@@ -266,16 +271,26 @@ async function renderTabs() {
 async function handleCreateTab(e) {
   e.preventDefault();
   const name = document.getElementById("tabName").value.trim();
+  const enablePos = document.getElementById("tabEnablePos").checked;
   if (!name) return alert("Введите имя вкладки");
 
   console.log("Создание вкладки:", name);
 
   // 1. Создаём вкладку
-  const tab = await createTab({
-    name,
-    description: "",
-    tag_ids: []
-  });
+  let tab;
+  try {
+    tab = await createTab({
+      name,
+      description: "",
+      tag_ids: [],
+      enable_pos: enablePos,
+    });
+  } catch (err) {
+    console.error("Не удалось создать вкладку", err);
+    showTopAlert(err?.message || "Не удалось создать вкладку", "danger", 5000);
+    return;
+  }
+
 
   console.log("Вкладка создана:", tab);
 
@@ -308,6 +323,7 @@ async function handleCreateTab(e) {
   // 4. Очистка и перерисовка
   document.getElementById("tabName").value = "";
   document.getElementById("fieldsContainer").innerHTML = "";
+  document.getElementById("tabEnablePos").checked = true;
   bootstrap.Modal.getInstance(document.getElementById("createTabModal")).hide();
   await renderTabs();
 }
@@ -318,12 +334,13 @@ async function handleEditTab(e) {
   e.preventDefault();
   const id = document.getElementById("editTabId").value;
   const name = document.getElementById("editTabName").value.trim();
+  const enablePos = document.getElementById("editEnablePos").checked;
   const fields = collectFields(document.getElementById("editFieldsContainer"));
 
   // Validate fields: if any field input is marked locked (disabled), keep original values
   const finalFields = fields.map(f => ({ name: f.name, allowed_values: f.allowed_values, strong: !!f.strong }));
 
-  await updateTab(id, { name, fields: finalFields });
+  await updateTab(id, { name, fields: finalFields, enable_pos: enablePos });
   bootstrap.Modal.getInstance(document.getElementById("editTabModal")).hide();
   await renderTabs();
 }
@@ -565,6 +582,10 @@ function collectFields(container) {
 async function openEditTabModal(tab) {
   document.getElementById("editTabId").value = tab.id;
   document.getElementById("editTabName").value = tab.name;
+  const editEnablePosEl = document.getElementById("editEnablePos");
+  if (editEnablePosEl) {
+    editEnablePosEl.checked = tab.enable_pos !== false;
+  }
   const container = document.getElementById("editFieldsContainer");
   container.innerHTML = "Загрузка...";
 

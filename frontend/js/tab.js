@@ -1,15 +1,19 @@
-import { getItemsByBox, 
-  getBoxes, 
-  createBox, 
-  getTabFields, 
-  API_URL, 
-  searchItems, 
-  createTag, 
-  fetchTabs, 
-  deleteItem, 
-  fetchTags, 
-  attachTag, 
-  detachTag } from "./api.js";
+import {
+  getItemsByBox,
+  getBoxes,
+  createBox,
+  getTabFields,
+  API_URL,
+  searchItems,
+  createTag,
+  fetchTabs,
+  deleteItem,
+  fetchTags,
+  attachTag,
+  detachTag,
+  deleteTag as deleteTagApi,
+  reorderItems,
+} from "./api.js";
 
 let addItemOffcanvasEl = null;
 let addItemOffcanvasInstance = null;
@@ -34,6 +38,15 @@ let boxesById = new Map();
 let tagCache = [];
 let tagsById = new Map();
 let tagsLoaded = false;
+let tagPillsContainer = null;
+let tagOffcanvasInstance = null;
+let deleteTagModalInstance = null;
+let deleteTagNameEl;
+let deleteTagBindingsEl;
+let deleteTagConfirmBtn;
+let pendingDeleteTagId = null;
+let latestTabsSnapshot = [];
+let currentTabEnablePos = true;
 const FALLBACK_TAG_COLOR = "#6c757d";
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -70,12 +83,43 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (attachItemTagFormEl) attachItemTagFormEl.addEventListener("submit", handleAttachItemTagSubmit);
   }
 
+  const tagOffcanvasEl = document.getElementById("createTagOffcanvas");
+  tagPillsContainer = document.getElementById("tagPillsContainer");
+  if (tagOffcanvasEl) {
+    tagOffcanvasInstance = new bootstrap.Offcanvas(tagOffcanvasEl);
+  }
+
+  const deleteTagModalEl = document.getElementById("deleteTagModal");
+  if (deleteTagModalEl) {
+    deleteTagModalInstance = new bootstrap.Modal(deleteTagModalEl);
+    deleteTagNameEl = document.getElementById("deleteTagName");
+    deleteTagBindingsEl = document.getElementById("deleteTagBindings");
+    deleteTagConfirmBtn = document.getElementById("confirmDeleteTagBtn");
+    deleteTagConfirmBtn?.addEventListener("click", handleDeleteTagConfirm);
+  }
+
+  if (tagPillsContainer) {
+    tagPillsContainer.addEventListener("click", (event) => {
+      const deleteBtn = event.target.closest("[data-action='delete-tag']");
+      if (!deleteBtn) return;
+      const tagId = Number(deleteBtn.dataset.tagId);
+      const tag = tagsById.get(tagId);
+      if (tag) {
+        openDeleteTagModal(tag);
+      }
+    });
+  }
+
   // try to fetch tab name and set titles/brand
   let tabName = null;
   try {
     const tabs = await fetchTabs();
+    latestTabsSnapshot = tabs || [];
     const tab = (tabs || []).find(t => String(t.id) === String(tabId));
-    if (tab) tabName = tab.name;
+    if (tab) {
+      tabName = tab.name;
+      currentTabEnablePos = tab.enable_pos !== false;
+    }
   } catch (err) {
     console.warn('Could not fetch tabs for name:', err);
   }
@@ -86,13 +130,20 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (brandEl) brandEl.textContent = tabName || `Вкладка #${tabId}`;
 
   await refreshTagCache();
+  renderExistingTagPills();
   renderBoxes(tabId);
 
   // dropdown quick actions
   const ddAdd = document.getElementById('dropdown-add-box');
   if (ddAdd) ddAdd.addEventListener('click', (e) => { e.preventDefault(); new bootstrap.Modal(document.getElementById('addBoxModal')).show(); });
   const ddTag = document.getElementById('dropdown-create-tag');
-  if (ddTag) ddTag.addEventListener('click', (e) => { e.preventDefault(); new bootstrap.Modal(document.getElementById('createTagModal')).show(); });
+  if (ddTag)
+    ddTag.addEventListener('click', async (e) => {
+      e.preventDefault();
+      await refreshTagCache();
+      renderExistingTagPills();
+      tagOffcanvasInstance?.show();
+    });
 
   // --- Создание ящика ---
   document.getElementById("addBoxForm").addEventListener("submit", async (e) => {
@@ -101,10 +152,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     const description = document.getElementById("boxDescription").value.trim();
     if (!name) return;
 
-    await createBox(tabId, name, description);
-    bootstrap.Modal.getInstance(document.getElementById("addBoxModal")).hide();
-    document.getElementById("addBoxForm").reset();
-    renderBoxes(tabId);
+    try {
+      await createBox(tabId, name, description);
+      showTopAlert("Ящик создан", "success");
+      bootstrap.Modal.getInstance(document.getElementById("addBoxModal")).hide();
+      document.getElementById("addBoxForm").reset();
+      renderBoxes(tabId);
+    } catch (err) {
+      console.error("Не удалось создать ящик", err);
+      showTopAlert(err?.message || "Не удалось создать ящик", "danger", 5000);
+    }
   });
 
   // --- Поиск айтемов ---
@@ -121,21 +178,23 @@ document.addEventListener("DOMContentLoaded", async () => {
       return;
     }
 
-    container.innerHTML = results.map(r => {
-      const meta = r.metadata
-        ? Object.entries(r.metadata)
-            .map(([k, v]) => `<div><small><b>${k}</b>: ${v}</small></div>`)
-            .join("")
-        : "";
+    container.innerHTML = results
+      .map((r) => {
+        const name = escapeHtml(r.name);
+        const boxName = r.box?.name ? escapeHtml(r.box.name) : "—";
+        const boxId = r.box?.id;
+        const openBtn = boxId
+          ? `<button class="btn btn-sm btn-outline-primary" data-box-id="${boxId}" data-item-id="${r.id}">Открыть ящик</button>`
+          : "";
 
-      return `
-        <div class="border p-2 mb-2 bg-light rounded shadow-sm">
-          <div><b>${r.name}</b> → <i>${r.box?.name ?? "—"}</i></div>
-          ${meta}
-          ${r.box ? `<button class="btn btn-sm btn-success mt-2" data-box-id="${r.box.id}" data-item-id="${r.id}">Открыть в ящике</button>` : ""}
-        </div>
-      `;
-    }).join("");
+        return `
+          <div class="d-flex align-items-center gap-2 border p-2 mb-2 bg-dark rounded shadow-sm flex-wrap">
+            <span><strong>${name}</strong> → ${boxName}</span>
+            ${openBtn}
+          </div>
+        `;
+      })
+      .join("");
 
     // навешиваем обработчики на кнопки
     container.querySelectorAll("[data-box-id]").forEach(btn => {
@@ -185,12 +244,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     const color = document.getElementById("tagColor").value || null;
     if (!name) return alert("Введите имя тега");
 
-    await createTag({ name, color });
-    bootstrap.Modal.getInstance(document.getElementById("createTagModal")).hide();
-    document.getElementById("tagName").value = "";
-    document.getElementById("tagColor").value = "#0d6efd";
-    await refreshTagCache(true);
-    if (currentTabId) renderBoxes(currentTabId);
+    try {
+      await createTag({ name, color });
+      showTopAlert("Тэг создан", "success");
+      tagOffcanvasInstance?.hide();
+      document.getElementById("tagName").value = "";
+      document.getElementById("tagColor").value = "#0d6efd";
+      await refreshTagCache(true);
+      renderExistingTagPills();
+      if (currentTabId) renderBoxes(currentTabId);
+    } catch (err) {
+      console.error("Не удалось создать тэг", err);
+      showTopAlert(err?.message || "Не удалось создать тэг", "danger", 5000);
+    }
   });
 });
 
@@ -216,7 +282,9 @@ async function openBoxModal(boxId, highlightItemId = null, options = {}) {
 
     // build table header: POS, Tags, Name, ...metaKeys, Actions
     const headers = [
-      { key: '__pos', label: 'POS', style: 'width:90px' },
+      currentTabEnablePos
+        ? { key: '__pos', label: 'POS', style: 'width:90px' }
+        : { key: '__seq', label: '№', style: 'width:70px' },
       { key: '__tags', label: 'Тэги', style: 'width:140px', class: 'text-center' },
       { key: '__name', label: 'Название' },
       ...metaKeys.map(k => ({ key: k, label: k })),
@@ -243,11 +311,13 @@ async function openBoxModal(boxId, highlightItemId = null, options = {}) {
             </tr>
           </thead>
           <tbody>
-            ${items.map(i => {
+            ${items.map((i, index) => {
               const rowCells = [];
               const fromStart = typeof i.box_position === 'number' ? i.box_position : null;
               const fromEnd = typeof i.box_position === 'number' ? (totalItems - i.box_position + 1) : null;
-              const posLabel = fromStart !== null && fromEnd !== null ? `${fromStart} (${fromEnd})` : '';
+              const posLabel = currentTabEnablePos
+                ? (fromStart !== null && fromEnd !== null ? `${fromStart} (${fromEnd})` : '')
+                : (index + 1);
               rowCells.push(`<td class="align-middle">${esc(posLabel)}</td>`);
               rowCells.push(`<td class="align-middle text-center">${renderTagStrips(i.tag_ids)}</td>`);
               rowCells.push(`<td class="align-middle">${esc(i.name)}</td>`);
@@ -271,12 +341,8 @@ async function openBoxModal(boxId, highlightItemId = null, options = {}) {
     `;
 
     content.innerHTML = tableHtml;
-
-    const addItemBtn = document.getElementById("boxViewAddItemBtn");
-    if (addItemBtn) {
-      addItemBtn.onclick = async () => {
-        await openAddItemOffcanvas(targetBox);
-      };
+    if (currentTabEnablePos) {
+      enableItemReorder(content, Number(boxId));
     }
 
     // if highlightItemId provided, highlight the corresponding row
@@ -316,11 +382,18 @@ async function openBoxModal(boxId, highlightItemId = null, options = {}) {
     });
   }
 
+  const addItemBtn = document.getElementById("boxViewAddItemBtn");
+  if (addItemBtn) {
+    addItemBtn.onclick = async () => {
+      await openAddItemOffcanvas(targetBox);
+    };
+  }
+
   if (refreshOnly) return;
 
   // show without backdrop so add-item modal can remain open in parallel
   const modalEl = document.getElementById("boxViewModal");
-  const modal = new bootstrap.Modal(modalEl, { backdrop: false });
+  const modal = new bootstrap.Modal(modalEl, { backdrop: false, focus: false });
 
   // remove highlight when modal is hidden to reset state for next open
   if (modalEl) {
@@ -477,6 +550,156 @@ function renderTagStrips(tagIds = []) {
   return strips.length ? `<div class="tag-strip-list">${strips.join("")}</div>` : `<span class="text-muted small">Нет</span>`;
 }
 
+function renderExistingTagPills() {
+  if (!tagPillsContainer) return;
+  if (!Array.isArray(tagCache) || !tagCache.length) {
+    tagPillsContainer.innerHTML = `<div class="text-muted small">Тэгов пока нет</div>`;
+    return;
+  }
+
+  tagPillsContainer.innerHTML = tagCache
+    .map((tag) => {
+      const name = escapeHtml(tag.name || `#${tag.id}`);
+      const color = escapeHtml(tag.color || FALLBACK_TAG_COLOR);
+      const readable = getReadableTextColor(tag.color || FALLBACK_TAG_COLOR);
+      const darkClass = readable === "#212529" ? " dark-text" : "";
+      return `
+        <div class="tag-pill${darkClass}" style="background:${color}; border-color:${color}; color:${readable};">
+          <span class="tag-pill-label">${name}</span>
+          <button type="button" class="tag-pill-delete" title="Удалить тэг" data-action="delete-tag" data-tag-id="${tag.id}">&times;</button>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+function openDeleteTagModal(tag) {
+  if (!deleteTagModalInstance || !deleteTagNameEl || !deleteTagBindingsEl) return;
+  pendingDeleteTagId = tag.id;
+  deleteTagNameEl.textContent = tag.name;
+  const bindings = describeTagBindings(tag);
+  deleteTagBindingsEl.innerHTML = bindings.length
+    ? bindings.map((item) => `<li>${item}</li>`).join("")
+    : `<li class="text-muted">Тэг не привязан ни к чему</li>`;
+  deleteTagModalInstance.show();
+}
+
+function describeTagBindings(tag) {
+  const bindings = [];
+  const tabIds = Array.isArray(tag.attached_tabs) ? tag.attached_tabs : [];
+  const boxIds = Array.isArray(tag.attached_boxes) ? tag.attached_boxes : [];
+  const itemIds = Array.isArray(tag.attached_items) ? tag.attached_items : [];
+
+  tabIds.forEach((tabId) => {
+    const tabName = latestTabsSnapshot.find((t) => t.id === tabId)?.name;
+    bindings.push(`Вкладка: ${escapeHtml(tabName || `#${tabId}`)}`);
+  });
+
+  boxIds.forEach((boxId) => {
+    const box = boxesById.get(Number(boxId));
+    const label = box?.name ? `${box.name} (#${boxId})` : `#${boxId}`;
+    bindings.push(`Ящик: ${escapeHtml(label)}`);
+  });
+
+  itemIds.forEach((itemId) => {
+    bindings.push(`Айтем ID: ${escapeHtml(itemId)}`);
+  });
+
+  return bindings;
+}
+
+function enableItemReorder(container, boxId) {
+  if (!currentTabEnablePos) return;
+  const tbody = container.querySelector("tbody");
+  if (!tbody) return;
+
+  const rows = Array.from(tbody.querySelectorAll("tr"));
+  if (rows.length < 2) return;
+
+  let draggingRow = null;
+let orderChanged = false;
+let previousUserSelect = "";
+
+  const detach = () => {
+    document.removeEventListener("mousemove", handleMouseMove);
+    document.removeEventListener("mouseup", handleMouseUp);
+  };
+
+  const handleMouseDown = (event) => {
+    if (event.button !== 0) return;
+    if (event.target.closest(".item-actions-container")) return;
+
+    draggingRow = event.currentTarget;
+    draggingRow.classList.add("dragging");
+    orderChanged = false;
+    previousUserSelect = document.body.style.userSelect;
+    document.body.style.userSelect = "none";
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+    event.preventDefault();
+  };
+
+  const handleMouseMove = (event) => {
+    if (!draggingRow) return;
+
+    const pointerY = event.clientY;
+    const next = draggingRow.nextElementSibling;
+    if (next) {
+      const nextRect = next.getBoundingClientRect();
+      const trigger = nextRect.top + nextRect.height / 2;
+      if (pointerY > trigger) {
+        draggingRow.parentNode.insertBefore(next, draggingRow);
+        orderChanged = true;
+        return;
+      }
+    }
+
+    const prev = draggingRow.previousElementSibling;
+    if (prev) {
+      const prevRect = prev.getBoundingClientRect();
+      const trigger = prevRect.top + prevRect.height / 2;
+      if (pointerY < trigger) {
+        draggingRow.parentNode.insertBefore(draggingRow, prev);
+        orderChanged = true;
+      }
+    }
+  };
+
+  const handleMouseUp = async () => {
+    detach();
+    if (!draggingRow) return;
+
+    draggingRow.classList.remove("dragging");
+    document.body.style.userSelect = previousUserSelect || "";
+    const droppedRow = draggingRow;
+    draggingRow = null;
+
+    if (!orderChanged) return;
+
+    const orderedIds = Array.from(tbody.querySelectorAll("tr")).map((row) =>
+      Number(row.dataset.itemId)
+    );
+
+    const highlightId = Number(droppedRow.dataset.itemId);
+
+    try {
+      await reorderItems(boxId, orderedIds);
+      showTopAlert("Порядок в ящике сохранён", "success", 2500);
+      await openBoxModal(boxId, highlightId, { refreshOnly: true });
+    } catch (err) {
+      console.error("Ошибка сохранения порядка", err);
+      showTopAlert(err?.message || "Не удалось сохранить порядок", "danger");
+      await openBoxModal(boxId, highlightId, { refreshOnly: true });
+    }
+  };
+
+  rows.forEach((row) => {
+    row.classList.add("draggable-item-row");
+    row.addEventListener("mousedown", handleMouseDown);
+  });
+}
+
 function renderAttachChipList(container, tagIds, emptyText, onRemove) {
   if (!container) return;
   const ids = Array.isArray(tagIds) ? tagIds : [];
@@ -612,6 +835,7 @@ async function handleAttachBoxTagSubmit(e) {
       populateBoxTagSelect(attachBoxContext);
     }
     await refreshTagCache(true);
+    renderExistingTagPills();
     if (currentTabId) await renderBoxes(currentTabId);
     if (currentBoxViewBoxId === boxId) {
       await openBoxModal(boxId);
@@ -711,6 +935,7 @@ async function handleAttachItemTagSubmit(e) {
       populateItemTagSelect(attachItemContext);
     }
     await refreshTagCache(true);
+    renderExistingTagPills();
     const boxId = attachItemTagFormEl?.dataset.boxId || attachItemContext?.box_id || currentBoxViewBoxId;
     if (boxId) {
       await openBoxModal(Number(boxId));
@@ -746,6 +971,7 @@ async function detachTagFromBox(tagId) {
     renderAttachBoxTagChips();
     populateBoxTagSelect(attachBoxContext);
     await refreshTagCache(true);
+    renderExistingTagPills();
     if (currentTabId) await renderBoxes(currentTabId);
     if (currentBoxViewBoxId === attachBoxContext.id) {
       await openBoxModal(attachBoxContext.id);
@@ -767,6 +993,7 @@ async function detachTagFromItem(tagId) {
     renderAttachItemTagChips();
     populateItemTagSelect(attachItemContext);
     await refreshTagCache(true);
+    renderExistingTagPills();
     const boxId = attachItemContext.box_id || currentBoxViewBoxId;
     if (boxId) {
       await openBoxModal(Number(boxId));
@@ -777,6 +1004,25 @@ async function detachTagFromItem(tagId) {
   } catch (err) {
     console.error("Detach tag error:", err);
     showTopAlert(err?.message || "Не удалось отвязать тэг", "danger");
+  }
+}
+
+async function handleDeleteTagConfirm() {
+  if (!pendingDeleteTagId) return;
+  deleteTagConfirmBtn?.setAttribute("disabled", "disabled");
+  try {
+    await deleteTagApi(pendingDeleteTagId);
+    showTopAlert("Тэг удалён", "success");
+    deleteTagModalInstance?.hide();
+    await refreshTagCache(true);
+    renderExistingTagPills();
+    if (currentTabId) await renderBoxes(currentTabId);
+  } catch (err) {
+    console.error("Не удалось удалить тэг", err);
+    showTopAlert(err?.message || "Не удалось удалить тэг", "danger");
+  } finally {
+    pendingDeleteTagId = null;
+    deleteTagConfirmBtn?.removeAttribute("disabled");
   }
 }
 
@@ -791,7 +1037,12 @@ async function issueItem(itemId, boxId) {
       return;
     }
     showTopAlert('Айтем выдан', 'success');
-    await openBoxModal(Number(boxId));
+    if (boxId) {
+      await openBoxModal(Number(boxId));
+    }
+    if (currentTabId) {
+      await renderBoxes(currentTabId);
+    }
   } catch (err) {
     console.error('Delete error:', err);
     showTopAlert('Ошибка при выдаче айтема', 'danger');
