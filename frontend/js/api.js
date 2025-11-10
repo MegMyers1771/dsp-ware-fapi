@@ -62,8 +62,8 @@ export async function addItem(tabId, boxId, name, metadata_json) {
       name,
       tab_id: tabId,
       box_id: boxId,
-      slot_id: null,
       metadata_json,
+      tag_ids: [],
     }),
   });
 }
@@ -92,6 +92,49 @@ export async function createTag(tagData) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(tagData),
   });
+
+  // console.log(res.json())
+
   return await res.json();
 }
 
+export async function fetchTags() {
+  const res = await fetch(`${API_URL}/tags`);
+  if (!res.ok) throw new Error("Не удалось получить список тэгов");
+  return await res.json();
+}
+
+export async function attachTag(tagId, payload) {
+  const res = await fetch(`${API_URL}/tags/${tagId}/attach`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Не удалось привязать тэг");
+  }
+  return await res.json();
+}
+
+export async function detachTag(tagId, payload) {
+  const res = await fetch(`${API_URL}/tags/${tagId}/detach`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Не удалось отвязать тэг");
+  }
+  return await res.json();
+}
+
+export async function deleteTag(tagId) {
+  const res = await fetch(`${API_URL}/tags/${tagId}`, { method: "DELETE" });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Не удалось удалить тэг");
+  }
+  return await res.json();
+}
