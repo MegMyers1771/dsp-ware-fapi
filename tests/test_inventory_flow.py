@@ -16,7 +16,7 @@ def setup_data():
     """
     tabs = []
     for name in ["CPU", "RAM"]:
-        r = client.post("/tabs/", json={"name": name, "tag_id": None})
+        r = client.post("/tabs/", json={"name": name})
         assert r.status_code == 200
         tabs.append(r.json())
 
@@ -38,9 +38,7 @@ def setup_data():
             box_data = {
                 "name": f"{tab['name']} Box {j+1}",
                 "tab_id": tab["id"],
-                "capacity": 26,
-                "slot_count": 0,
-                "tag_id": None,
+                # "capacity": 26,
             }
             r = client.post("/boxes/", json=box_data)
             assert r.status_code == 200
@@ -61,7 +59,7 @@ def test_create_items_with_tags(setup_data):
     Создаём по 3 айтема в каждом боксе:
     - для вкладки CPU: разные процессоры
     - для вкладки RAM: разные модули памяти
-    У первого айтема из первого бокса — tag_id = тег "мусор".
+    После создания связываем первый айтем с тегом "мусор".
     """
     boxes = setup_data["boxes"]
     tags = setup_data["tags"]
@@ -92,9 +90,7 @@ def test_create_items_with_tags(setup_data):
                 "name": models[n],
                 "tab_id": tab_id,
                 "box_id": box["id"],
-                "slot_id": None,
                 "metadata_json": metadata,
-                "tag_id": tags[0]["id"] if i == 0 and n == 0 else None,
             }
             
             # print(item_data)
@@ -107,10 +103,34 @@ def test_create_items_with_tags(setup_data):
     # Проверяем, что всего по 3 айтема на бокс
     assert len(created_items) == len(boxes) * 3
 
-    # Проверяем, что тег привязался только к одному айтему
-    tagged_items = [i for i in created_items if i["tag_id"] is not None]
-    assert len(tagged_items) == 1
-    assert tagged_items[0]["tag_id"] == setup_data["tags"][0]["id"]
+    first_item_id = created_items[0]["id"]
+    attach_resp = client.post(
+        f"/tags/{tags[0]['id']}/attach",
+        json={"item_id": first_item_id}
+    )
+    assert attach_resp.status_code == 200
+
+    linked_tag_resp = client.post(
+        "/tags/",
+        json={"name": "auto-link", "color": "#123456", "item_id": created_items[1]["id"]}
+    )
+    assert linked_tag_resp.status_code == 200
+    auto_tag = linked_tag_resp.json()
+
+    refreshed_items_resp = client.get(f"/items/{boxes[0]['id']}")
+    assert refreshed_items_resp.status_code == 200
+    refreshed_items = refreshed_items_resp.json()
+
+    tagged_items = [i for i in refreshed_items if i["tag_ids"]]
+    assert len(tagged_items) == 2
+    assert tags[0]["id"] in tagged_items[0]["tag_ids"]
+    assert auto_tag["id"] in tagged_items[1]["tag_ids"]
+
+    # Проверяем, что позиции в каждом боксе присваиваются по порядку
+    for box in boxes:
+        box_items = [i for i in created_items if i["box_id"] == box["id"]]
+        positions = [i["box_position"] for i in box_items]
+        assert positions == list(range(1, len(box_items) + 1))
 
     print(created_items[:6])
     # Проверяем, что CPU айтемы содержат нужные поля
@@ -132,7 +152,7 @@ def test_search_by_tab_and_tag(setup_data):
     tab_id = setup_data["tabs"][0]["id"]
     query = "9400F"
 
-    r = client.get(f"/items/search?query={query}&tab_id={tab_id}&tag_id={None}")
+    r = client.get(f"/items/search?query={query}&tab_id={tab_id}")
     assert r.status_code == 200
     items = r.json()
     assert len(items['results']) == 2
@@ -140,8 +160,57 @@ def test_search_by_tab_and_tag(setup_data):
     
     tab_id = setup_data["tabs"][1]["id"]
     query = "8GB"
-    r = client.get(f"/items/search?query={query}&tab_id={tab_id}&tag_id={None}")
+    r = client.get(f"/items/search?query={query}&tab_id={tab_id}")
     assert r.status_code == 200
     items = r.json()
     assert len(items['results']) == 4
     assert "8GB" in items['results'][0]["name"]
+
+
+def test_box_position_reorders_on_delete():
+    """
+    Проверяем, что при удалении айтема позиции в боксе сжимаются.
+    """
+    tab_resp = client.post("/tabs/", json={"name": "PositionTab"})
+    assert tab_resp.status_code == 200
+    tab = tab_resp.json()
+
+    field_resp = client.post("/tab_fields/", json={"tab_id": tab["id"], "name": "Spec"})
+    assert field_resp.status_code == 200
+
+    box_resp = client.post(
+        "/boxes/",
+        json={
+            "name": "Position Box",
+            "tab_id": tab["id"],
+            "description": None,
+        },
+    )
+    assert box_resp.status_code == 200
+    box = box_resp.json()
+
+    item_ids = []
+    for idx in range(3):
+        item_resp = client.post(
+            "/items/",
+            json={
+                "name": f"Item {idx}",
+                "tab_id": tab["id"],
+                "box_id": box["id"],
+                "metadata_json": {"Spec": f"Value {idx}"},
+            },
+        )
+        assert item_resp.status_code == 200, item_resp.text
+        payload = item_resp.json()
+        item_ids.append(payload["id"])
+        assert payload["box_position"] == idx + 1
+
+    delete_resp = client.delete(f"/items/{item_ids[1]}")
+    assert delete_resp.status_code == 200
+
+    box_items_resp = client.get(f"/items/{box['id']}")
+    assert box_items_resp.status_code == 200
+    box_items = box_items_resp.json()
+    assert len(box_items) == 2
+    assert [item["box_position"] for item in box_items] == [1, 2]
+    assert [item["name"] for item in box_items] == ["Item 0", "Item 2"]
