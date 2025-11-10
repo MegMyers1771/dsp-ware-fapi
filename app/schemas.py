@@ -1,48 +1,54 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
+from pydantic.config import ConfigDict
 
 # --- Tags ---
 class TagBase(BaseModel):
     name: str
     color: Optional[str] = "#cccccc"
 
-class TagCreate(TagBase):
+class TagLinkPayload(BaseModel):
+    tab_id: Optional[int] = None
+    box_id: Optional[int] = None
+    item_id: Optional[int] = None
+
+class TagCreate(TagBase, TagLinkPayload):
     pass
 
-class TagRead(TagBase):
+class TagRead(TagBase, TagLinkPayload):
     id: int
+    attached_tabs: List[int] = Field(default_factory=list)
+    attached_boxes: List[int] = Field(default_factory=list)
+    attached_items: List[int] = Field(default_factory=list)
+    model_config = ConfigDict(from_attributes=True)
 
-    class Config:
-        orm_mode = True
+    # class Config:
+    #     orm_mode = True
         
-class TagUpdate(TagBase):
-    ...
+class TagUpdate(TagLinkPayload):
+    name: Optional[str] = None
+    color: Optional[str] = None
 
 
 # --- Tabs ---
 class TabBase(BaseModel):
     name: str
     description: Optional[str] = None
-    tag_id: Optional[int] = None  # можно указать тег для вкладки
+    tag_ids: List[int] = Field(default_factory=list)
 
 class TabCreate(TabBase):
     pass
 
 class TabRead(TabBase):
     id: int
-    # name: str
-    # description: Optional[str]
-    # tag_id: Optional[int] = None
     box_count: Optional[int] = 0
     fields: List["TabFieldRead"] = []
-
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
+    # class Config:
+    #     orm_mode = True
 
 class TabUpdate(TabBase):
     ...
-    # name: Optional[str]
-    # tag_id: Optional[int]
 
 
 # --- Tab fields ---
@@ -50,9 +56,9 @@ class TabFieldBase(BaseModel):
     name: str
     strong: bool = False  # если true, то значение должно быть из allowed_values
     allowed_values: Optional[List[Any] | Dict[str, str]] = None
-    
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
+    # class Config:
+    #     orm_mode = True
 
 class TabFieldCreate(TabFieldBase):
     tab_id: int
@@ -71,10 +77,9 @@ class TabFieldUpdate(TabFieldBase):
 # --- Boxes ---
 class BoxBase(BaseModel):
     name: str
-    # capacity: int = 10
     description: Optional[str] = None
-    # slot_count: int = 0
-    tag_id: Optional[int] = None  # теперь можно указать тег
+    tag_ids: List[int] = Field(default_factory=list)
+    model_config = ConfigDict(from_attributes=True)
 
 class BoxCreate(BoxBase):
     tab_id: int
@@ -83,35 +88,11 @@ class BoxRead(BoxBase):
     id: int
     tab_id: int
     items_count: int = 0
-    # tag_id: Optional[int]
-
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 class BoxUpdate(BoxBase):
     ...
     # name: Optional[str]
-    # capacity: Optional[int]
-    # slot_count: Optional[int]
-    # tag_id: Optional[int]
-
-
-# --- Slots ---
-class SlotBase(BaseModel):
-    position: int
-    max_qty: int = 10
-    tag_id: Optional[int] = None  # теперь тоже может быть тег
-
-class SlotCreate(SlotBase):
-    box_id: int
-
-class SlotRead(SlotBase):
-    id: int
-    box_id: int
-    # tag_id: Optional[int]
-
-    class Config:
-        orm_mode = True
 
 
 # --- Items ---
@@ -119,29 +100,24 @@ class ItemBase(BaseModel):
     name: str
     qty: int = 1
     position: Optional[int] = 1
-    metadata_json: Optional[Dict[str, Any]] = {}
-    tag_id: Optional[int] = None  # можно задать тег или оставить null
+    metadata_json: Dict[str, Any] = Field(default_factory=dict)
+    tag_ids: List[int] = Field(default_factory=list)
 
 class ItemCreate(ItemBase):
     tab_id: int
     box_id: Optional[int]
-    slot_id: Optional[int]
 
 class ItemRead(ItemBase):
     id: int
     tab_id: int
     box_id: Optional[int]
-    slot_id: Optional[int]
-    # tag_id: Optional[int]
+    box_position: int
 
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
         
 class ItemUpdate(ItemBase):
     box_id: Optional[int]
     # name: Optional[str]
     # box_id: Optional[int]
-    # tag_id: Optional[int]
-    # slot_id: Optional[int]
     # position: Optional[int]
     # metadata_json: Optional[Dict[str, Any]]

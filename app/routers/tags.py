@@ -10,6 +10,14 @@ router = APIRouter(prefix="/tags", tags=["Tags"])
 def create_tag(tag: schemas.TagCreate, db: Session = Depends(database.get_db)):
     return tags.create_tag(db, tag)
 
+@router.post("/{tag_id}/attach", response_model=schemas.TagRead)
+def attach_tag(tag_id: int, payload: schemas.TagLinkPayload, db: Session = Depends(database.get_db)):
+    return tags.attach_tag(db, tag_id, payload)
+
+@router.post("/{tag_id}/detach", response_model=schemas.TagRead)
+def detach_tag(tag_id: int, payload: schemas.TagLinkPayload, db: Session = Depends(database.get_db)):
+    return tags.detach_tag(db, tag_id, payload)
+
 @router.get("/", response_model=List[schemas.TagRead])
 def get_tags(db: Session = Depends(database.get_db)):
     return tags.get_tags(db)
