@@ -41,3 +41,8 @@ def update_item(item_id: int, item_data: schemas.ItemUpdate, db: Session = Depen
 @router.delete("/{item_id}")
 def delete_item(item_id: int, db: Session = Depends(database.get_db)):
     return items.delete_item(db, item_id)
+
+
+@router.post("/reorder", response_model=List[schemas.ItemRead])
+def reorder_items(payload: schemas.ItemReorderPayload, db: Session = Depends(database.get_db)):
+    return items.reorder_items(db, payload.box_id, payload.ordered_ids)

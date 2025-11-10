@@ -30,6 +30,7 @@ class Tab(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
     description = Column(String, nullable=True)
+    enable_pos = Column(Boolean, nullable=False, default=True)
     tag_ids = Column(JSON, nullable=False, default=list)
     boxes = relationship("Box", back_populates="tab", cascade="all, delete")
     fields = relationship("TabField", back_populates="tab", cascade="all, delete")

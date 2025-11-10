@@ -35,6 +35,7 @@ class TabBase(BaseModel):
     name: str
     description: Optional[str] = None
     tag_ids: List[int] = Field(default_factory=list)
+    enable_pos: bool = True
 
 class TabCreate(TabBase):
     pass
@@ -121,3 +122,8 @@ class ItemUpdate(ItemBase):
     # box_id: Optional[int]
     # position: Optional[int]
     # metadata_json: Optional[Dict[str, Any]]
+
+
+class ItemReorderPayload(BaseModel):
+    box_id: int
+    ordered_ids: List[int] = Field(min_length=1)
