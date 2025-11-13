@@ -50,7 +50,7 @@ export function bootstrapHistoryPage() {
           <tr>
             <td>${escapeHtml(entry.id)}</td>
             <td>${statusHtml}</td>
-            <td>${escapeHtml(entry.responsible || "—")}</td>
+            <td>${escapeHtml(entry.responsible_email || "—")}</td>
             <td>${escapeHtml(entry.serial_number || "—")}</td>
             <td>${escapeHtml(entry.invoice_number || "—")}</td>
             <td>

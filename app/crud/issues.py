@@ -22,23 +22,24 @@ def _parse_snapshot(raw_value: Any) -> Dict[str, Any]:
 
 def list_issues(db: Session, limit: int = 200) -> List[schemas.IssueHistoryEntry]:
     query = (
-        db.query(models.Issue, models.ItemUtilized, models.Status)
+        db.query(models.Issue, models.ItemUtilized, models.Status, models.User)
         .join(models.ItemUtilized, models.ItemUtilized.issue_id == models.Issue.id)
         .join(models.Status, models.Status.id == models.Issue.status_id)
+        .outerjoin(models.User, models.User.id == models.ItemUtilized.responsible_user_id)
         .order_by(models.Issue.created_at.desc())
     )
     if limit:
         query = query.limit(limit)
 
     entries: List[schemas.IssueHistoryEntry] = []
-    for issue, snapshot, status in query.all():
+    for issue, snapshot, status, user in query.all():
         entries.append(
             schemas.IssueHistoryEntry(
                 id=issue.id,
                 status_id=status.id,
                 status_name=status.name,
                 status_color=status.color,
-                responsible=snapshot.responsible,
+                responsible_email=getattr(user, "email", None),
                 serial_number=snapshot.serial_number,
                 invoice_number=snapshot.invoice_number,
                 item_snapshot=_parse_snapshot(snapshot.item_snapshot),

@@ -14,6 +14,7 @@ import { showTopAlert } from "../../common/alerts.js";
 import { escapeHtml } from "../../common/dom.js";
 import { renderTagFillCell } from "../../common/tagTemplates.js";
 import { getDefaultItemFormMode } from "./state.js";
+import { getCurrentUser } from "../../common/authControls.js";
 
 export function createBoxesController(state, elements) {
   let tagManagerApi = null;
@@ -549,12 +550,17 @@ function setupIssueOffcanvas(state, { onIssued } = {}) {
 
   const statusSelect = document.getElementById("issueStatusId");
   const statusHintEl = document.getElementById("issueStatusHint");
-  const responsibleInput = document.getElementById("issueResponsible");
+  const responsibleInput = document.getElementById("issueResponsibleEmail");
   const serialInput = document.getElementById("issueSerialNumber");
   const invoiceInput = document.getElementById("issueInvoiceNumber");
   const summaryEl = document.getElementById("issueItemSummary");
   const metaEl = document.getElementById("issueItemMeta");
   const submitBtn = document.getElementById("issueSubmitBtn");
+
+  if (responsibleInput) {
+    responsibleInput.readOnly = true;
+    responsibleInput.classList.add("bg-light", "text-muted");
+  }
 
   let pendingContext = null;
   let statuses = [];
@@ -592,6 +598,8 @@ function setupIssueOffcanvas(state, { onIssued } = {}) {
     return statuses;
   };
 
+  const resolveResponsibleEmail = () => (getCurrentUser()?.email || "").trim();
+
   offcanvasEl.addEventListener("hidden.bs.offcanvas", () => {
     pendingContext = null;
     formEl.reset();
@@ -611,10 +619,9 @@ function setupIssueOffcanvas(state, { onIssued } = {}) {
       statusSelect?.focus();
       return;
     }
-    const responsible = responsibleInput?.value.trim();
+    const responsible = resolveResponsibleEmail();
     if (!responsible) {
-      showTopAlert("Укажите ответственного", "warning");
-      responsibleInput?.focus();
+      showTopAlert("Авторизуйтесь, чтобы выдать айтем", "warning");
       return;
     }
     const serialNumber = serialInput?.value.trim();
@@ -623,11 +630,10 @@ function setupIssueOffcanvas(state, { onIssued } = {}) {
     try {
       await issueInventoryItem(pendingContext.item.id, {
         status_id: statusId,
-        responsible,
+        responsible_email: responsible,
         serial_number: serialNumber || null,
         invoice_number: invoiceNumber || null,
       });
-      window.localStorage?.setItem("issueResponsible", responsible);
       window.localStorage?.setItem("issueStatusId", String(statusId));
       showTopAlert("Айтем выдан", "success");
       const context = pendingContext;
@@ -651,8 +657,13 @@ function setupIssueOffcanvas(state, { onIssued } = {}) {
       if (summaryEl) summaryEl.innerHTML = buildIssueSummary(state, pendingContext.item, pendingContext.box);
       if (metaEl) metaEl.innerHTML = buildIssueMetadata(pendingContext.item);
       if (statusSelect) statusSelect.innerHTML = "<option value=\"\">Загрузка...</option>";
-      const savedResponsible = window.localStorage?.getItem("issueResponsible") || "";
-      if (responsibleInput) responsibleInput.value = savedResponsible;
+      const currentEmail = resolveResponsibleEmail();
+      if (!currentEmail) {
+        showTopAlert("Авторизуйтесь, чтобы выдать айтем", "warning");
+        instance.hide();
+        return;
+      }
+      if (responsibleInput) responsibleInput.value = currentEmail;
       if (serialInput) serialInput.value = "";
       if (invoiceInput) invoiceInput.value = "";
       const savedStatusId = window.localStorage?.getItem("issueStatusId") || "";

@@ -280,9 +280,13 @@ def issue_item(db: Session, item_id: int, payload: schemas.ItemIssuePayload):
         ensure_ascii=False,
     )
 
-    responsible = payload.responsible.strip()
-    if not responsible:
-        raise HTTPException(status_code=400, detail="Responsible must not be empty")
+    user = (
+        db.query(models.User)
+        .filter(models.User.email == payload.responsible_email.lower())
+        .first()
+    )
+    if not user:
+        raise HTTPException(status_code=404, detail="Ответственный пользователь не найден")
 
     issue = models.Issue(status_id=status.id)
     serial_number = (payload.serial_number or "").strip() or None
@@ -290,9 +294,9 @@ def issue_item(db: Session, item_id: int, payload: schemas.ItemIssuePayload):
     item_utilized = models.ItemUtilized(
         issue=issue,
         item_snapshot=snapshot,
-        responsible=responsible,
         serial_number=serial_number,
         invoice_number=invoice_number,
+        responsible_user_id=user.id,
     )
 
     db.add(item_utilized)

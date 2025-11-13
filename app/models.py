@@ -143,11 +143,16 @@ class ItemUtilized(Base):
     id = Column(Integer, primary_key=True)
     issue_id = Column(Integer, ForeignKey("issues.id", ondelete="CASCADE"), nullable=False, unique=True)
     item_snapshot = Column(Text, nullable=False)
-    responsible = Column(String, nullable=False)
     serial_number = Column(String, nullable=True)
     invoice_number = Column(String, nullable=True)
+    responsible_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
     issue = relationship("Issue", back_populates="item_utilized")
+    responsible_user = relationship("User")
+
+    @property
+    def responsible_email(self) -> str | None:
+        return getattr(self.responsible_user, "email", None)
 
 
 # --- Users ---

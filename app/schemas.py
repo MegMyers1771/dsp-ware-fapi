@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, constr
+from pydantic import BaseModel, Field, constr, EmailStr
 from typing import Optional, List, Dict, Any
 from pydantic.config import ConfigDict
 from datetime import datetime
@@ -58,7 +58,7 @@ class IssueRead(BaseModel):
 
 class ItemIssuePayload(BaseModel):
     status_id: int
-    responsible: constr(min_length=1)
+    responsible_email: EmailStr
     serial_number: Optional[str] = None
     invoice_number: Optional[str] = None
 
@@ -67,7 +67,7 @@ class ItemUtilizedRead(BaseModel):
     id: int
     issue_id: int
     item_snapshot: str
-    responsible: str
+    responsible_email: Optional[str] = None
     serial_number: Optional[str] = None
     invoice_number: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
@@ -78,7 +78,7 @@ class IssueHistoryEntry(BaseModel):
     status_id: int
     status_name: str
     status_color: Optional[str] = None
-    responsible: str
+    responsible_email: Optional[str] = None
     serial_number: Optional[str] = None
     invoice_number: Optional[str] = None
     item_snapshot: Dict[str, Any]
