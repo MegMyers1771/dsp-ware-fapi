@@ -1,10 +1,27 @@
-from datetime import datetime
+from datetime import datetime, UTC
+import uuid
 from sqlalchemy import (
-    Column, Integer, String, ForeignKey, DateTime, Boolean, JSON, Index
+    Column,
+    Integer,
+    String,
+    ForeignKey,
+    DateTime,
+    Boolean,
+    JSON,
+    Index,
+    Text,
 )
 from sqlalchemy.orm import relationship, declarative_base
 
 Base = declarative_base()
+
+
+def utcnow() -> datetime:
+    return datetime.now(UTC)
+
+
+def generate_stable_key() -> str:
+    return uuid.uuid4().hex
 
 
 # --- Tags ---
@@ -21,6 +38,15 @@ class Tag(Base):
     tab = relationship("Tab", foreign_keys=[tab_id])
     box = relationship("Box", foreign_keys=[box_id])
     item = relationship("Item", foreign_keys=[item_id])
+
+
+# --- Statuses ---
+class Status(Base):
+    __tablename__ = "statuses"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    color = Column(String, default="#0d6efd")
 
 
 # --- Tabs ---
@@ -43,6 +69,7 @@ class TabField(Base):
     id = Column(Integer, primary_key=True)
     tab_id = Column(Integer, ForeignKey("tabs.id"), nullable=False)
     name = Column(String, nullable=False)
+    stable_key = Column(String, nullable=False, unique=True, default=generate_stable_key)
     
     allowed_values = Column(JSON, nullable=True)
     strong = Column(Boolean, default=False)  # если true, то значение должно быть из allowed_values
@@ -95,3 +122,41 @@ class Item(Base):
     __table_args__ = (
         Index("idx_item_tab_name", "tab_id", "name"),
     )
+
+
+# --- Issues ---
+class Issue(Base):
+    __tablename__ = "issues"
+
+    id = Column(Integer, primary_key=True)
+    status_id = Column(Integer, ForeignKey("statuses.id"), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+    status = relationship("Status")
+    item_utilized = relationship("ItemUtilized", back_populates="issue", uselist=False)
+
+
+# --- Item utilization history ---
+class ItemUtilized(Base):
+    __tablename__ = "item_utilized"
+
+    id = Column(Integer, primary_key=True)
+    issue_id = Column(Integer, ForeignKey("issues.id", ondelete="CASCADE"), nullable=False, unique=True)
+    item_snapshot = Column(Text, nullable=False)
+    responsible = Column(String, nullable=False)
+    serial_number = Column(String, nullable=True)
+    invoice_number = Column(String, nullable=True)
+
+    issue = relationship("Issue", back_populates="item_utilized")
+
+
+# --- Users ---
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True)
+    email = Column(String, nullable=False, unique=True)
+    hashed_password = Column(String, nullable=False)
+    role = Column(String, nullable=False, default="viewer")
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)

@@ -5,8 +5,9 @@ from app.models import Item
 from typing import List
 from app import schemas, database
 from app.crud import items
+from app.security import require_read_access, require_edit_access
 
-router = APIRouter(prefix="/items", tags=["Items"])
+router = APIRouter(prefix="/items", tags=["Items"], dependencies=[Depends(require_read_access)])
 
 
 
@@ -26,7 +27,7 @@ def search_items(
 
 
 
-@router.post("/", response_model=schemas.ItemRead)
+@router.post("/", response_model=schemas.ItemRead, dependencies=[Depends(require_edit_access)])
 def create_item(item: schemas.ItemCreate, db: Session = Depends(database.get_db)):
     return items.create_item(db, item)
 
@@ -34,15 +35,20 @@ def create_item(item: schemas.ItemCreate, db: Session = Depends(database.get_db)
 def get_items(box_id: int, db: Session = Depends(database.get_db)):
     return items.get_items_by_box(db, box_id)
 
-@router.put("/{item_id}", response_model=schemas.ItemRead)
+@router.put("/{item_id}", response_model=schemas.ItemRead, dependencies=[Depends(require_edit_access)])
 def update_item(item_id: int, item_data: schemas.ItemUpdate, db: Session = Depends(database.get_db)):
     return items.update_item(db, item_id, item_data)
 
-@router.delete("/{item_id}")
+@router.delete("/{item_id}", dependencies=[Depends(require_edit_access)])
 def delete_item(item_id: int, db: Session = Depends(database.get_db)):
     return items.delete_item(db, item_id)
 
 
-@router.post("/reorder", response_model=List[schemas.ItemRead])
+@router.post("/{item_id}/issue", response_model=schemas.ItemUtilizedRead, dependencies=[Depends(require_edit_access)])
+def issue_item(item_id: int, payload: schemas.ItemIssuePayload, db: Session = Depends(database.get_db)):
+    return items.issue_item(db, item_id, payload)
+
+
+@router.post("/reorder", response_model=List[schemas.ItemRead], dependencies=[Depends(require_edit_access)])
 def reorder_items(payload: schemas.ItemReorderPayload, db: Session = Depends(database.get_db)):
     return items.reorder_items(db, payload.box_id, payload.ordered_ids)

@@ -28,7 +28,7 @@ def update_tab_field(db: Session, field_id: int, field_data: schemas.TabFieldUpd
     if not db_field:
         raise HTTPException(status_code=404, detail="Tab field not found")
 
-    for key, value in field_data.dict(exclude_unset=True).items():
+    for key, value in field_data.model_dump(exclude_unset=True).items():
         setattr(db_field, key, value)
 
     db.commit()

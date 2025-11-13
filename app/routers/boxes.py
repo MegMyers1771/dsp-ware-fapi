@@ -4,10 +4,11 @@ from typing import List
 from app import schemas, database
 from app.crud import boxes
 from fastapi.exceptions import HTTPException
+from app.security import require_read_access, require_edit_access
 
-router = APIRouter(prefix="/boxes", tags=["Boxes"])
+router = APIRouter(prefix="/boxes", tags=["Boxes"], dependencies=[Depends(require_read_access)])
 
-@router.post("/", response_model=schemas.BoxRead)
+@router.post("/", response_model=schemas.BoxRead, dependencies=[Depends(require_edit_access)])
 def create_box(box: schemas.BoxCreate, db: Session = Depends(database.get_db)):
     return boxes.create_box(db, box)
 
@@ -25,10 +26,10 @@ def read_boxes_by_tab(tab_id: int, db: Session = Depends(database.get_db)):
         raise HTTPException(status_code=404, detail="No boxes found for this tab")
     return boxes_list
 
-@router.put("/{box_id}", response_model=schemas.BoxRead)
+@router.put("/{box_id}", response_model=schemas.BoxRead, dependencies=[Depends(require_edit_access)])
 def update_box(box_id: int, box_data: schemas.BoxUpdate, db: Session = Depends(database.get_db)):
     return boxes.update_box(db, box_id, box_data)
 
-@router.delete("/{box_id}")
+@router.delete("/{box_id}", dependencies=[Depends(require_edit_access)])
 def delete_box(box_id: int, db: Session = Depends(database.get_db)):
     return boxes.delete_box(db, box_id)

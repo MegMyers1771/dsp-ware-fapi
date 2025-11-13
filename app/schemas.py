@@ -1,6 +1,7 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, constr
 from typing import Optional, List, Dict, Any
 from pydantic.config import ConfigDict
+from datetime import datetime
 
 # --- Tags ---
 class TagBase(BaseModel):
@@ -28,6 +29,97 @@ class TagRead(TagBase, TagLinkPayload):
 class TagUpdate(TagLinkPayload):
     name: Optional[str] = None
     color: Optional[str] = None
+
+
+# --- Statuses ---
+class StatusBase(BaseModel):
+    name: str
+    color: Optional[str] = "#0d6efd"
+
+class StatusCreate(StatusBase):
+    pass
+
+class StatusRead(StatusBase):
+    id: int
+    model_config = ConfigDict(from_attributes=True)
+
+class StatusUpdate(BaseModel):
+    name: Optional[str] = None
+    color: Optional[str] = None
+
+
+# --- Issues ---
+class IssueRead(BaseModel):
+    id: int
+    status_id: int
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ItemIssuePayload(BaseModel):
+    status_id: int
+    responsible: constr(min_length=1)
+    serial_number: Optional[str] = None
+    invoice_number: Optional[str] = None
+
+
+class ItemUtilizedRead(BaseModel):
+    id: int
+    issue_id: int
+    item_snapshot: str
+    responsible: str
+    serial_number: Optional[str] = None
+    invoice_number: Optional[str] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class IssueHistoryEntry(BaseModel):
+    id: int
+    status_id: int
+    status_name: str
+    status_color: Optional[str] = None
+    responsible: str
+    serial_number: Optional[str] = None
+    invoice_number: Optional[str] = None
+    item_snapshot: Dict[str, Any]
+    created_at: datetime
+
+
+# --- Users / Auth ---
+class UserBase(BaseModel):
+    email: str
+
+
+class UserCreate(UserBase):
+    password: constr(min_length=6)
+    role: Optional[str] = "viewer"
+
+
+class UserRead(UserBase):
+    id: int
+    role: str
+    is_active: bool
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UserUpdate(BaseModel):
+    role: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class TokenWithUser(Token):
+    user: UserRead
 
 
 # --- Tabs ---
@@ -65,7 +157,9 @@ class TabFieldCreate(TabFieldBase):
     tab_id: int
 
 class TabFieldRead(TabFieldBase):
-    name: str
+    id: int
+    tab_id: int
+    stable_key: str
     
 class TabFieldUpdate(TabFieldBase):
     ...
