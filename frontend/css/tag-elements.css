@@ -15,6 +15,34 @@
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
 }
 
+.tag-fill-cell {
+  padding: 0;
+  vertical-align: middle;
+  overflow: hidden;
+}
+
+.tag-fill-wrapper {
+  width: 100%;
+  min-height: 2.25rem;
+}
+
+.tag-fill-strips {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+
+.tag-fill-strip {
+  flex: 1 1 0;
+  min-height: 2.25rem;
+  cursor: help;
+}
+
+.tag-fill-empty {
+  display: block;
+  padding: 0.75rem;
+}
+
 .tag-pill-container {
   display: flex;
   flex-wrap: wrap;
@@ -103,4 +131,22 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.status-preview-bubble {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 1.25rem;
+  border-radius: 0.75rem;
+  background: #198754;
+  color: #fff;
+  font-weight: 600;
+  min-width: 120px;
+  justify-content: center;
+  box-shadow: 0 0.125rem 0.5rem rgba(0, 0, 0, 0.15);
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.status-preview-bubble.dark-text {
+  color: #212529;
 }

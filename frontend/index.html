@@ -46,7 +46,11 @@
           </ul>
 
           <ul>
-            <button type="button" id="dropdown-check-history" class="btn btn-outline-info" onclick="alert('в процессе...')">История выдачи</button>
+            <button type="button" id="dropdown-create-status" class="btn btn-outline-info">Создать статус</button>
+          </ul>
+
+          <ul>
+            <button type="button" id="dropdown-check-history" class="btn btn-outline-info">История выдачи</button>
           </ul>
           <!-- <li class="nav-item">
             <a class="nav-link active" href="/">Главная <span class="visually-hidden">(current)</span></a>
@@ -61,6 +65,12 @@
             </ul>
           </li> -->
         </ul>
+        <div class="d-flex align-items-center gap-2 ms-auto flex-wrap">
+          <span id="currentUserBadge" class="badge text-bg-secondary d-none"></span>
+          <button type="button" id="loginBtn" class="btn btn-outline-light btn-sm">Войти</button>
+          <button type="button" id="logoutBtn" class="btn btn-outline-danger btn-sm d-none">Выйти</button>
+          <button type="button" id="userManagementBtn" class="btn btn-outline-info btn-sm d-none">Пользователи</button>
+        </div>
       </div>
     </div>
   </nav>
@@ -90,6 +100,71 @@
           <!-- injected by JS -->
         </tbody>
       </table>
+    </div>
+  </div>
+
+  <!-- Login Modal -->
+  <div class="modal fade" id="loginModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Войти</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <form id="loginForm" class="d-flex flex-column gap-3">
+            <div>
+              <label class="form-label">Email</label>
+              <input type="email" name="email" class="form-control" required />
+            </div>
+            <div>
+              <label class="form-label">Пароль</label>
+              <input type="password" name="password" class="form-control" required />
+            </div>
+            <button type="submit" class="btn btn-primary">Войти</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- User Management Modal -->
+  <div class="modal fade" id="userManagementModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Пользователи</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div id="userManagementList" class="mb-4"></div>
+          <hr>
+          <form id="createUserForm" class="row g-3">
+            <div class="col-md-5">
+              <label class="form-label">Email</label>
+              <input type="email" name="newUserEmail" class="form-control" required />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Пароль</label>
+              <input type="password" name="newUserPassword" class="form-control" required />
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Роль</label>
+              <select name="newUserRole" class="form-select">
+                <option value="viewer">viewer</option>
+                <option value="editor">editor</option>
+                <option value="admin">admin</option>
+              </select>
+            </div>
+            <div class="col-12 text-end">
+              <button type="submit" class="btn btn-primary">Создать пользователя</button>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -141,6 +216,35 @@
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
           <button type="button" class="btn btn-danger" id="confirmDeleteTagBtn">Удалить</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Status Modal -->
+  <div class="modal fade" id="createStatusModal" tabindex="-1" aria-labelledby="createStatusModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form id="createStatusForm">
+          <div class="modal-header">
+            <h5 class="modal-title" id="createStatusModalLabel">Создать статус</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <label class="form-label" for="statusName">Название статуса</label>
+              <input id="statusName" class="form-control" placeholder="Например, В работе" required>
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="statusColor">Цвет</label>
+              <input id="statusColor" type="color" class="form-control form-control-color" value="#198754">
+            </div>
+            <div class="status-preview-title text-muted small mb-2">Существующие статусы</div>
+            <div id="statusListContainer" class="d-flex flex-wrap gap-2"></div>
+          </div>
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-success">Создать статус</button>
+          </div>
+        </form>
       </div>
     </div>
   </div>

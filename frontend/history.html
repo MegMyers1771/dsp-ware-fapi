@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>История выдачи — DSP-Ware</title>
+  <link rel="stylesheet" href="/static/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="/static/css/tag-elements.css" />
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg bg-dark" data-bs-theme="dark">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="/">DSP-Ware_alpha</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarHistory" aria-controls="navbarHistory" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarHistory">
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+          <li class="nav-item">
+            <a class="btn btn-outline-light" href="/">Назад к вкладкам</a>
+          </li>
+        </ul>
+        <div class="d-flex align-items-center gap-2 flex-wrap ms-auto">
+          <button id="issueHistoryReload" class="btn btn-outline-info" type="button">Обновить</button>
+          <span id="currentUserBadge" class="badge text-bg-secondary d-none"></span>
+          <button type="button" id="loginBtn" class="btn btn-outline-light btn-sm">Войти</button>
+          <button type="button" id="logoutBtn" class="btn btn-outline-danger btn-sm d-none">Выйти</button>
+          <button type="button" id="userManagementBtn" class="btn btn-outline-info btn-sm d-none">Пользователи</button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h2 class="mb-0">История выдачи</h2>
+      <span class="text-muted small">Показываются последние перемещения</span>
+    </div>
+    <div id="issueHistoryEmpty" class="alert alert-secondary">Загрузка...</div>
+    <div class="table-responsive">
+      <table class="table table-hover table-striped table-sm align-middle" id="issueHistoryTable">
+        <thead class="table-dark">
+          <tr>
+            <th style="width:80px">ID</th>
+            <th style="width:150px">Статус</th>
+            <th style="width:160px">Ответственный</th>
+            <th style="width:160px">Серийный номер</th>
+            <th style="width:160px">Номер счёта</th>
+            <th>Айтем</th>
+            <th style="width:180px">Создано</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Login Modal -->
+  <div class="modal fade" id="loginModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Войти</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <form id="loginForm" class="d-flex flex-column gap-3">
+            <div>
+              <label class="form-label">Email</label>
+              <input type="email" name="email" class="form-control" required />
+            </div>
+            <div>
+              <label class="form-label">Пароль</label>
+              <input type="password" name="password" class="form-control" required />
+            </div>
+            <button type="submit" class="btn btn-primary">Войти</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- User Management Modal -->
+  <div class="modal fade" id="userManagementModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Пользователи</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div id="userManagementList" class="mb-4"></div>
+          <hr>
+          <form id="createUserForm" class="row g-3">
+            <div class="col-md-5">
+              <label class="form-label">Email</label>
+              <input type="email" name="newUserEmail" class="form-control" required />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Пароль</label>
+              <input type="password" name="newUserPassword" class="form-control" required />
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Роль</label>
+              <select name="newUserRole" class="form-select">
+                <option value="viewer">viewer</option>
+                <option value="editor">editor</option>
+                <option value="admin">admin</option>
+              </select>
+            </div>
+            <div class="col-12 text-end">
+              <button type="submit" class="btn btn-primary">Создать пользователя</button>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script type="module" src="/static/js/history.js"></script>
+</body>
+</html>

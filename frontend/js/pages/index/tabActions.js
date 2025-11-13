@@ -1,0 +1,238 @@
+import {
+  createTab,
+  createTabField as apiCreateTabField,
+  deleteTabField as apiDeleteTabField,
+  getBoxes,
+  getItemsByBox,
+  getTabFields,
+  updateTab,
+  updateTabField as apiUpdateTabField,
+} from "../../api.js";
+import { showTopAlert } from "../../common/alerts.js";
+import { addFieldRow, collectFields } from "./fields.js";
+
+export function initTabActions({ onTabsChanged }) {
+  document.getElementById("createTabForm")?.addEventListener("submit", (event) =>
+    handleCreateTab(event, onTabsChanged)
+  );
+  document.getElementById("editTabForm")?.addEventListener("submit", (event) =>
+    handleEditTab(event, onTabsChanged)
+  );
+}
+
+async function handleCreateTab(event, onTabsChanged) {
+  event.preventDefault();
+  const nameInput = document.getElementById("tabName");
+  const enablePosInput = document.getElementById("tabEnablePos");
+  if (!nameInput) return;
+  const name = nameInput.value.trim();
+  const enablePos = enablePosInput?.checked ?? true;
+  if (!name) return alert("Введите имя вкладки");
+
+  let tab;
+  try {
+    tab = await createTab({
+      name,
+      description: "",
+      tag_ids: [],
+      enable_pos: enablePos,
+    });
+  } catch (err) {
+    console.error("Не удалось создать вкладку", err);
+    showTopAlert(err?.message || "Не удалось создать вкладку", "danger", 5000);
+    return;
+  }
+
+  const container = document.getElementById("fieldsContainer");
+  const fields = collectFields(container);
+
+  for (const field of fields) {
+    if (!field.name) return alert("Каждое поле должно иметь имя");
+    if (field.allowed_values_raw && field.allowed_values.length === 0) {
+      return alert("Некорректный формат списка значений: используйте 'val1, val2'");
+    }
+  }
+
+  await Promise.all(
+    fields.map((field) =>
+      apiCreateTabField({
+        name: field.name,
+        allowed_values: field.allowed_values,
+        tab_id: tab.id,
+        strong: !!field.strong,
+      })
+    )
+  );
+
+  nameInput.value = "";
+  container.innerHTML = "";
+  if (enablePosInput) enablePosInput.checked = true;
+  bootstrap.Modal.getInstance(document.getElementById("createTabModal"))?.hide();
+  await onTabsChanged();
+}
+
+async function handleEditTab(event, onTabsChanged) {
+  event.preventDefault();
+  const id = document.getElementById("editTabId")?.value;
+  const nameInput = document.getElementById("editTabName");
+  const name = nameInput?.value.trim();
+  const enablePos = document.getElementById("editEnablePos")?.checked ?? true;
+  const container = document.getElementById("editFieldsContainer");
+  if (!id) return;
+
+  if (!name) {
+    showTopAlert("Введите название вкладки", "danger");
+    return;
+  }
+
+  const fields = collectFields(container);
+  for (const field of fields) {
+    if (!field.name) {
+      showTopAlert("Каждое поле должно иметь имя", "danger");
+      return;
+    }
+    if (field.allowed_values_raw && field.allowed_values.length === 0) {
+      showTopAlert("Некорректный список значений: используйте формат 'v1, v2'", "danger");
+      return;
+    }
+  }
+
+  const originalIds = parseOriginalFieldIds(container?.dataset?.originalFieldIds);
+  const persistedIds = new Set();
+
+  try {
+    await updateTab(id, { name, enable_pos: enablePos });
+
+    for (const field of fields) {
+      if (field.id) {
+        persistedIds.add(field.id);
+        await apiUpdateTabField(field.id, {
+          name: field.name,
+          allowed_values: field.allowed_values,
+          strong: !!field.strong,
+        });
+      } else {
+        const created = await apiCreateTabField({
+          tab_id: Number(id),
+          name: field.name,
+          allowed_values: field.allowed_values,
+          strong: !!field.strong,
+        });
+        if (created?.id) {
+          persistedIds.add(created.id);
+        }
+      }
+    }
+
+    for (const previousId of originalIds) {
+      if (!persistedIds.has(previousId)) {
+        await apiDeleteTabField(previousId);
+      }
+    }
+  } catch (err) {
+    console.error("Ошибка обновления вкладки", err);
+    showTopAlert(err?.message || "Не удалось обновить вкладку", "danger");
+    return;
+  }
+
+  bootstrap.Modal.getInstance(document.getElementById("editTabModal"))?.hide();
+  showTopAlert("Вкладка обновлена", "success");
+  await onTabsChanged();
+}
+
+export async function openEditTabModal(tab) {
+  document.getElementById("editTabId").value = tab.id;
+  document.getElementById("editTabName").value = tab.name;
+  const modalTitle = document.querySelector("#editTabModal .modal-title");
+  if (modalTitle) {
+    modalTitle.textContent = `Редактирование «${tab.name}»`;
+  }
+  const editEnablePosEl = document.getElementById("editEnablePos");
+  if (editEnablePosEl) {
+    editEnablePosEl.checked = tab.enable_pos !== false;
+  }
+  const container = document.getElementById("editFieldsContainer");
+  if (!container) return;
+  container.innerHTML = "Загрузка...";
+
+  const fields = await getTabFields(tab.id);
+  const usedMap = await fieldsUsedMap(tab.id, fields);
+
+  container.innerHTML = "";
+  const initialIds = fields
+    .map((f) => (f?.id !== undefined ? Number(f.id) : null))
+    .filter((val) => Number.isFinite(val));
+  container.dataset.originalFieldIds = JSON.stringify(initialIds);
+  fields.forEach((field) => {
+    const row = addFieldRow(container, {
+      id: field.id,
+      stable_key: field.stable_key,
+      name: field.name,
+      allowed_values: field.allowed_values || [],
+      strong: field.strong,
+    });
+    if (!row) return;
+    if (usedMap[field.id]) {
+      lockFieldRow(row);
+    }
+  });
+
+  new bootstrap.Modal(document.getElementById("editTabModal")).show();
+}
+
+function lockFieldRow(row) {
+  row.dataset.locked = "1";
+  const removeBtn = row.querySelector(".remove-field");
+  if (removeBtn) {
+    removeBtn.disabled = true;
+    removeBtn.classList.add("disabled");
+    removeBtn.setAttribute("title", "Нельзя удалить поле с существующими значениями");
+  }
+  if (!row.querySelector(".field-lock-badge")) {
+    const badge = document.createElement("div");
+    badge.className = "small text-warning mt-1 field-lock-badge";
+    badge.textContent = "⚠️ Поле уже заполнено в айтемах — удалить нельзя";
+    row.appendChild(badge);
+  }
+}
+
+function parseOriginalFieldIds(rawValue) {
+  if (!rawValue) return [];
+  try {
+    const parsed = JSON.parse(rawValue);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((val) => Number(val))
+      .filter((val) => Number.isFinite(val));
+  } catch {
+    return [];
+  }
+}
+
+async function fieldsUsedMap(tabId, fields) {
+  const map = {};
+  fields.forEach((field) => {
+    if (field?.id !== undefined) {
+      map[field.id] = false;
+    }
+  });
+
+  const boxes = await getBoxes(tabId);
+  if (!boxes || !Array.isArray(boxes) || boxes.length === 0) return map;
+
+  for (const box of boxes) {
+    const items = (await getItemsByBox(box.id)) || [];
+    for (const item of items) {
+      const meta = item.metadata_json || {};
+      for (const field of fields) {
+        if (!field?.id || map[field.id]) continue;
+        const value = meta ? meta[field.name] : undefined;
+        if (value !== undefined && value !== null && String(value).length > 0) {
+          map[field.id] = true;
+        }
+      }
+    }
+  }
+
+  return map;
+}

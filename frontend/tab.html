@@ -82,10 +82,17 @@
           </li> -->
         </ul>
 
-        <form class="d-flex me-2" role="search" onsubmit="event.preventDefault(); document.getElementById('searchBtn').click();">
-          <input id="searchInput" class="form-control me-2" type="search" placeholder="Поиск айтемов" aria-label="Search">
-          <button id="searchBtn" class="btn btn-secondary my-2 my-sm-0" type="button">Поиск</button>
+        <form class="d-flex gap-2 me-2 align-items-center" role="search" onsubmit="event.preventDefault(); document.getElementById('searchBtn').click();">
+          <input id="searchInput" class="form-control" type="search" placeholder="Поиск айтемов" aria-label="Search">
+          <button id="searchBtn" class="btn btn-secondary" type="button">Поиск</button>
+          <button id="openFiltersBtn" class="btn btn-outline-light" type="button">Фильтры</button>
         </form>
+        <div class="d-flex align-items-center gap-2 ms-auto flex-wrap">
+          <span id="currentUserBadge" class="badge text-bg-secondary d-none"></span>
+          <button type="button" id="loginBtn" class="btn btn-outline-light btn-sm">Войти</button>
+          <button type="button" id="logoutBtn" class="btn btn-outline-danger btn-sm d-none">Выйти</button>
+          <button type="button" id="userManagementBtn" class="btn btn-outline-info btn-sm d-none">Пользователи</button>
+        </div>
       </div>
     </div>
   </nav>
@@ -118,6 +125,71 @@
     <div class="mt-4">
       <h5>Результат поиска</h5>
       <div id="searchResults" class="border rounded bg-black p-2"></div>
+    </div>
+  </div>
+
+  <!-- Login Modal -->
+  <div class="modal fade" id="loginModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Войти</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <form id="loginForm" class="d-flex flex-column gap-3">
+            <div>
+              <label class="form-label">Email</label>
+              <input type="email" name="email" class="form-control" required />
+            </div>
+            <div>
+              <label class="form-label">Пароль</label>
+              <input type="password" name="password" class="form-control" required />
+            </div>
+            <button type="submit" class="btn btn-primary">Войти</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- User Management Modal -->
+  <div class="modal fade" id="userManagementModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Пользователи</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div id="userManagementList" class="mb-4"></div>
+          <hr>
+          <form id="createUserForm" class="row g-3">
+            <div class="col-md-5">
+              <label class="form-label">Email</label>
+              <input type="email" name="newUserEmail" class="form-control" required />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Пароль</label>
+              <input type="password" name="newUserPassword" class="form-control" required />
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Роль</label>
+              <select name="newUserRole" class="form-select">
+                <option value="viewer">viewer</option>
+                <option value="editor">editor</option>
+                <option value="admin">admin</option>
+              </select>
+            </div>
+            <div class="col-12 text-end">
+              <button type="submit" class="btn btn-primary">Создать пользователя</button>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -201,6 +273,32 @@
     </div>
   </div>
 
+  <!-- 🔍 Фильтры поиска -->
+  <div class="modal fade" id="searchFiltersModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <form id="searchFiltersForm">
+          <div class="modal-header">
+            <h5 class="modal-title">Фильтры по атрибутам</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
+          </div>
+          <div class="modal-body">
+            <div id="searchFiltersFields" class="row g-3">
+              <div class="col-12 text-muted">Загрузка полей...</div>
+            </div>
+          </div>
+          <div class="modal-footer justify-content-between">
+            <button type="button" class="btn btn-outline-secondary" id="searchFiltersResetBtn">Сбросить</button>
+            <div class="d-flex gap-2">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+              <button type="submit" class="btn btn-primary">Применить</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <!-- 🔹 Оффканвас добавления айтема -->
   <div class="offcanvas offcanvas-start" tabindex="-1" id="addItemOffcanvas" aria-labelledby="addItemOffcanvasLabel" data-bs-scroll="true" data-bs-backdrop="false">
     <div class="offcanvas-header">
@@ -220,6 +318,49 @@
           <button type="button" class="btn btn-secondary" data-bs-dismiss="offcanvas">Отмена</button>
           <button type="button" id="addModalOpenBoxBtn" class="btn btn-outline-primary">Открыть ящик</button>
           <button type="submit" class="btn btn-primary">Добавить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 🔹 Оффканвас выдачи айтема -->
+  <div class="offcanvas offcanvas-end" tabindex="-1" id="issueItemOffcanvas" aria-labelledby="issueItemOffcanvasLabel" data-bs-scroll="true" data-bs-backdrop="false">
+    <div class="offcanvas-header">
+      <h5 class="offcanvas-title" id="issueItemOffcanvasLabel">Выдать айтем</h5>
+      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Закрыть"></button>
+    </div>
+    <div class="offcanvas-body">
+      <form id="issueItemForm">
+        <input type="hidden" id="issueItemId" />
+        <input type="hidden" id="issueItemBoxId" />
+        <div class="mb-3">
+          <label class="form-label">Айтем</label>
+          <div id="issueItemSummary" class="small border rounded p-2 bg-light text-dark">Выберите айтем для выдачи</div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="issueStatusId">Статус выдачи</label>
+          <select id="issueStatusId" class="form-select" required></select>
+          <div id="issueStatusHint" class="form-text"></div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="issueResponsible">Ответственный</label>
+          <input type="text" id="issueResponsible" class="form-control" placeholder="ivan.petrov" required />
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="issueSerialNumber">Серийный номер (опционально)</label>
+          <input type="text" id="issueSerialNumber" class="form-control" placeholder="SN123456" />
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="issueInvoiceNumber">Номер счёта (опционально)</label>
+          <input type="text" id="issueInvoiceNumber" class="form-control" placeholder="INV-100" />
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Метаданные айтема</label>
+          <div id="issueItemMeta" class="small border rounded p-2 bg-light text-dark">Нет данных</div>
+        </div>
+        <div class="d-flex justify-content-end gap-2 border-top pt-3">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="offcanvas">Отмена</button>
+          <button type="submit" id="issueSubmitBtn" class="btn btn-primary">Выдать</button>
         </div>
       </form>
     </div>
