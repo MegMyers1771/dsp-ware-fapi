@@ -285,9 +285,10 @@ def issue_item(db: Session, item_id: int, payload: schemas.ItemIssuePayload):
         ensure_ascii=False,
     )
 
+    target_user_name = payload.responsible_user_name.lower()
     user = (
         db.query(models.User)
-        .filter(models.User.email == payload.responsible_email.lower())
+        .filter(models.User.user_name == target_user_name)
         .first()
     )
     if not user:

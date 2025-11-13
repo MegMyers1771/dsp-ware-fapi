@@ -557,7 +557,7 @@ function setupIssueOffcanvas(state, { onIssued } = {}) {
 
   const statusSelect = document.getElementById("issueStatusId");
   const statusHintEl = document.getElementById("issueStatusHint");
-  const responsibleInput = document.getElementById("issueResponsibleEmail");
+  const responsibleInput = document.getElementById("issueResponsibleUserName");
   const serialInput = document.getElementById("issueSerialNumber");
   const invoiceInput = document.getElementById("issueInvoiceNumber");
   const summaryEl = document.getElementById("issueItemSummary");
@@ -605,7 +605,7 @@ function setupIssueOffcanvas(state, { onIssued } = {}) {
     return statuses;
   };
 
-  const resolveResponsibleEmail = () => (getCurrentUser()?.email || "").trim();
+  const resolveResponsibleUserName = () => (getCurrentUser()?.user_name || "").trim();
 
   offcanvasEl.addEventListener("hidden.bs.offcanvas", () => {
     pendingContext = null;
@@ -626,7 +626,7 @@ function setupIssueOffcanvas(state, { onIssued } = {}) {
       statusSelect?.focus();
       return;
     }
-    const responsible = resolveResponsibleEmail();
+    const responsible = resolveResponsibleUserName();
     if (!responsible) {
       showTopAlert("Авторизуйтесь, чтобы выдать айтем", "warning");
       return;
@@ -637,7 +637,7 @@ function setupIssueOffcanvas(state, { onIssued } = {}) {
     try {
       await issueInventoryItem(pendingContext.item.id, {
         status_id: statusId,
-        responsible_email: responsible,
+        responsible_user_name: responsible,
         serial_number: serialNumber || null,
         invoice_number: invoiceNumber || null,
       });
@@ -664,13 +664,13 @@ function setupIssueOffcanvas(state, { onIssued } = {}) {
       if (summaryEl) summaryEl.innerHTML = buildIssueSummary(state, pendingContext.item, pendingContext.box);
       if (metaEl) metaEl.innerHTML = buildIssueMetadata(pendingContext.item);
       if (statusSelect) statusSelect.innerHTML = "<option value=\"\">Загрузка...</option>";
-      const currentEmail = resolveResponsibleEmail();
-      if (!currentEmail) {
+      const currentUserName = resolveResponsibleUserName();
+      if (!currentUserName) {
         showTopAlert("Авторизуйтесь, чтобы выдать айтем", "warning");
         instance.hide();
         return;
       }
-      if (responsibleInput) responsibleInput.value = currentEmail;
+      if (responsibleInput) responsibleInput.value = currentUserName;
       if (serialInput) serialInput.value = "";
       if (invoiceInput) invoiceInput.value = "";
       const savedStatusId = window.localStorage?.getItem("issueStatusId") || "";

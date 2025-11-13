@@ -33,14 +33,14 @@ export async function initAuthControls() {
   loginForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const formData = new FormData(loginForm);
-    const email = formData.get("email")?.toString().trim();
+    const userName = formData.get("user_name")?.toString().trim();
     const password = formData.get("password")?.toString() ?? "";
-    if (!email || !password) {
-      showTopAlert("Введите email и пароль", "warning");
+    if (!userName || !password) {
+      showTopAlert("Введите имя пользователя и пароль", "warning");
       return;
     }
     try {
-      const data = await loginRequest({ email, password });
+      const data = await loginRequest({ user_name: userName, password });
       setAuthToken(data.access_token);
       currentUser = data.user;
       showTopAlert("Вход выполнен", "success");
@@ -97,7 +97,7 @@ function updateAuthUI() {
     loginBtn?.classList.add("d-none");
     logoutBtn?.classList.remove("d-none");
     if (userBadge) {
-      userBadge.textContent = `${currentUser.email} (${currentUser.role})`;
+      userBadge.textContent = `${currentUser.user_name} (${currentUser.role})`;
       userBadge.classList.remove("d-none");
     }
     if (currentUser.role === "admin") {
@@ -127,15 +127,15 @@ function setupUserManagementModal() {
   createUserForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const formData = new FormData(createUserForm);
-    const email = formData.get("newUserEmail")?.toString().trim();
+    const userName = formData.get("newUserName")?.toString().trim();
     const password = formData.get("newUserPassword")?.toString();
     const role = formData.get("newUserRole")?.toString() || "viewer";
-    if (!email || !password) {
-      showTopAlert("Укажите email и пароль", "warning");
+    if (!userName || !password) {
+      showTopAlert("Укажите имя пользователя и пароль", "warning");
       return;
     }
     try {
-      await createUser({ email, password, role });
+      await createUser({ user_name: userName, password, role });
       createUserForm.reset();
       await loadUsersIntoModal();
       showTopAlert("Пользователь создан", "success");
@@ -169,7 +169,7 @@ async function loadUsersIntoModal() {
         <table class="table table-sm align-middle">
           <thead class="table-light">
             <tr>
-              <th>Email</th>
+              <th>Имя пользователя</th>
               <th>Роль</th>
               <th>Статус</th>
               <th style="width:140px"></th>
@@ -185,7 +185,7 @@ async function loadUsersIntoModal() {
                   .join("");
                 return `
                   <tr data-user-id="${user.id}">
-                    <td>${user.email}</td>
+                    <td>${user.user_name}</td>
                     <td>
                       <select class="form-select form-select-sm user-role-select">
                         ${roleOptions}

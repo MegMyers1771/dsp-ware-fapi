@@ -25,16 +25,16 @@ async def register_user(
 
     try:
         user = users_crud.create_user(db, payload)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Email уже зарегистрирован")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     return user
 
 
 @router.post("/login", response_model=schemas.TokenWithUser)
 async def login(payload: schemas.LoginRequest, db: Session = Depends(database.get_db)):
-    user = users_crud.authenticate_user(db, payload.email, payload.password)
+    user = users_crud.authenticate_user(db, payload.user_name, payload.password)
     if not user:
-        raise HTTPException(status_code=400, detail="Неверный email или пароль")
+        raise HTTPException(status_code=400, detail="Неверное имя пользователя или пароль")
 
     token = create_access_token({"sub": str(user.id)})
     return schemas.TokenWithUser(access_token=token, token_type="bearer", user=user)

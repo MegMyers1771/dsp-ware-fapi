@@ -142,8 +142,16 @@
         <div class="modal-body">
           <form id="loginForm" class="d-flex flex-column gap-3">
             <div>
-              <label class="form-label">Email</label>
-              <input type="email" name="email" class="form-control" required />
+              <label class="form-label">Имя пользователя</label>
+              <input
+                type="text"
+                name="user_name"
+                class="form-control"
+                required
+                pattern="^[A-Za-z0-9_-]+$"
+                maxlength="50"
+                placeholder="user_name"
+              />
             </div>
             <div>
               <label class="form-label">Пароль</label>
@@ -169,8 +177,16 @@
           <hr>
           <form id="createUserForm" class="row g-3">
             <div class="col-md-5">
-              <label class="form-label">Email</label>
-              <input type="email" name="newUserEmail" class="form-control" required />
+              <label class="form-label">Имя пользователя</label>
+              <input
+                type="text"
+                name="newUserName"
+                class="form-control"
+                required
+                pattern="^[A-Za-z0-9_-]+$"
+                maxlength="50"
+                placeholder="new_user"
+              />
             </div>
             <div class="col-md-4">
               <label class="form-label">Пароль</label>

@@ -44,14 +44,14 @@ def client():
     """Возвращаем TestClient с тестовой БД и авторизацией администратора."""
     bootstrap_client = TestClient(app)
     admin_payload = {
-        "email": "admin@example.com",
+        "user_name": "admin_master",
         "password": "adminpass",
         "role": "admin",
     }
     bootstrap_client.post("/auth/register", json=admin_payload)
     login_resp = bootstrap_client.post(
         "/auth/login",
-        json={"email": admin_payload["email"], "password": admin_payload["password"]},
+        json={"user_name": admin_payload["user_name"], "password": admin_payload["password"]},
     )
     assert login_resp.status_code == 200
     token = login_resp.json()["access_token"]

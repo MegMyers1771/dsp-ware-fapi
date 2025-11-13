@@ -1,7 +1,14 @@
-from pydantic import BaseModel, Field, constr, EmailStr
+from pydantic import BaseModel, Field, constr
 from typing import Optional, List, Dict, Any
 from pydantic.config import ConfigDict
 from datetime import datetime
+
+UsernameStr = constr(
+    strip_whitespace=True,
+    min_length=3,
+    max_length=50,
+    pattern=r"^[A-Za-z0-9_-]+$",
+)
 
 # --- Tags ---
 class TagBase(BaseModel):
@@ -58,7 +65,7 @@ class IssueRead(BaseModel):
 
 class ItemIssuePayload(BaseModel):
     status_id: int
-    responsible_email: EmailStr
+    responsible_user_name: UsernameStr
     serial_number: Optional[str] = None
     invoice_number: Optional[str] = None
 
@@ -67,7 +74,7 @@ class ItemUtilizedRead(BaseModel):
     id: int
     issue_id: int
     item_snapshot: str
-    responsible_email: Optional[str] = None
+    responsible_user_name: Optional[str] = None
     serial_number: Optional[str] = None
     invoice_number: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
@@ -78,7 +85,7 @@ class IssueHistoryEntry(BaseModel):
     status_id: int
     status_name: str
     status_color: Optional[str] = None
-    responsible_email: Optional[str] = None
+    responsible_user_name: Optional[str] = None
     serial_number: Optional[str] = None
     invoice_number: Optional[str] = None
     item_snapshot: Dict[str, Any]
@@ -87,7 +94,7 @@ class IssueHistoryEntry(BaseModel):
 
 # --- Users / Auth ---
 class UserBase(BaseModel):
-    email: str
+    user_name: UsernameStr
 
 
 class UserCreate(UserBase):
@@ -109,7 +116,7 @@ class UserUpdate(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    email: str
+    user_name: UsernameStr
     password: str
 
 

@@ -4,13 +4,13 @@ from tests.conftest import TestingSessionLocal
 from app import models
 
 
-def ensure_user(client: TestClient, email: str, password: str = "pass123", role: str = "editor"):
+def ensure_user(client: TestClient, user_name: str, password: str = "pass123", role: str = "editor"):
     resp = client.post(
         "/auth/register",
-        json={"email": email, "password": password, "role": role},
+        json={"user_name": user_name, "password": password, "role": role},
     )
     if resp.status_code not in (200, 400):
-        raise AssertionError(f"Failed to ensure user {email}: {resp.text}")
+        raise AssertionError(f"Failed to ensure user {user_name}: {resp.text}")
 
 
 def test_root(client: TestClient):
@@ -56,21 +56,21 @@ def test_issue_item_flow(client: TestClient):
     assert status_res.status_code == 200
     status_id = status_res.json()["id"]
 
-    responsible_email = "tester@example.com"
-    ensure_user(client, responsible_email)
+    responsible_user_name = "tester_user"
+    ensure_user(client, responsible_user_name)
 
     issue_res = client.post(
         f"/items/{item_id}/issue",
         json={
             "status_id": status_id,
-            "responsible_email": responsible_email,
+            "responsible_user_name": responsible_user_name,
             "serial_number": "SN-001",
             "invoice_number": "INV-9",
         },
     )
     assert issue_res.status_code == 200
     issue_body = issue_res.json()
-    assert issue_body["responsible_email"] == responsible_email
+    assert issue_body["responsible_user_name"] == responsible_user_name
     assert "Router" in issue_body["item_snapshot"]
     assert issue_body["serial_number"] == "SN-001"
     assert issue_body["invoice_number"] == "INV-9"
@@ -87,7 +87,7 @@ def test_issue_item_flow(client: TestClient):
         assert stored_history.issue_id == stored_issue.id
         assert stored_history.serial_number == "SN-001"
         assert stored_history.invoice_number == "INV-9"
-        assert stored_history.responsible_user.email == responsible_email
+        assert stored_history.responsible_user.user_name == responsible_user_name
 
 
 def test_issue_item_decrements_quantity(client: TestClient):
@@ -127,15 +127,15 @@ def test_issue_item_decrements_quantity(client: TestClient):
     assert status_res.status_code == 200
     status_id = status_res.json()["id"]
 
-    responsible_email = "qty-check@example.com"
-    ensure_user(client, responsible_email)
+    responsible_user_name = "qty_check_user"
+    ensure_user(client, responsible_user_name)
 
     def issue_once():
         resp = client.post(
             f"/items/{item_id}/issue",
             json={
                 "status_id": status_id,
-                "responsible_email": responsible_email,
+                "responsible_user_name": responsible_user_name,
                 "serial_number": None,
                 "invoice_number": None,
             },
@@ -201,14 +201,14 @@ def test_issue_history_listing(client: TestClient):
     assert status_res.status_code == 200
     status_id = status_res.json()["id"]
 
-    responsible_email = "operator@example.com"
-    ensure_user(client, responsible_email)
+    responsible_user_name = "operator_user"
+    ensure_user(client, responsible_user_name)
 
     issue_res = client.post(
         f"/items/{item_id}/issue",
         json={
             "status_id": status_id,
-            "responsible_email": responsible_email,
+            "responsible_user_name": responsible_user_name,
             "serial_number": "HIST-42",
             "invoice_number": "INV-42",
         },
@@ -222,6 +222,6 @@ def test_issue_history_listing(client: TestClient):
     target = next((entry for entry in history if entry["serial_number"] == "HIST-42"), None)
     assert target is not None
     assert target["status_name"] == "History"
-    assert target["responsible_email"] == responsible_email
+    assert target["responsible_user_name"] == responsible_user_name
     assert target["invoice_number"] == "INV-42"
     assert target["item_snapshot"].get("item_name") == "Switch"

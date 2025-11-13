@@ -405,7 +405,7 @@ export async function login(payload) {
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(text || "Неверный email или пароль");
+    throw new Error(text || "Неверное имя пользователя или пароль");
   }
   return await res.json();
 }

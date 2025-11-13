@@ -10,8 +10,12 @@ def get_user(db: Session, user_id: int) -> Optional[models.User]:
     return db.query(models.User).filter(models.User.id == user_id).first()
 
 
-def get_user_by_email(db: Session, email: str) -> Optional[models.User]:
-    return db.query(models.User).filter(models.User.email == email).first()
+def get_user_by_name(db: Session, user_name: str) -> Optional[models.User]:
+    return (
+        db.query(models.User)
+        .filter(models.User.user_name == user_name.lower())
+        .first()
+    )
 
 
 def get_user_count(db: Session) -> int:
@@ -19,11 +23,12 @@ def get_user_count(db: Session) -> int:
 
 
 def create_user(db: Session, payload: schemas.UserCreate) -> models.User:
-    if get_user_by_email(db, payload.email):
-        raise ValueError("Email already registered")
+    normalized_name = payload.user_name.lower()
+    if get_user_by_name(db, normalized_name):
+        raise ValueError("Имя пользователя уже используется")
 
     db_user = models.User(
-        email=payload.email.lower(),
+        user_name=normalized_name,
         hashed_password=get_password_hash(payload.password),
         role=payload.role or "viewer",
     )
@@ -46,8 +51,8 @@ def update_user(db: Session, user: models.User, payload: schemas.UserUpdate) -> 
     return user
 
 
-def authenticate_user(db: Session, email: str, password: str) -> Optional[models.User]:
-    user = get_user_by_email(db, email.lower())
+def authenticate_user(db: Session, user_name: str, password: str) -> Optional[models.User]:
+    user = get_user_by_name(db, user_name.lower())
     if not user:
         return None
     if not verify_password(password, user.hashed_password):

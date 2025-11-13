@@ -151,8 +151,8 @@ class ItemUtilized(Base):
     responsible_user = relationship("User")
 
     @property
-    def responsible_email(self) -> str | None:
-        return getattr(self.responsible_user, "email", None)
+    def responsible_user_name(self) -> str | None:
+        return getattr(self.responsible_user, "user_name", None)
 
 
 # --- Users ---
@@ -160,7 +160,7 @@ class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True)
-    email = Column(String, nullable=False, unique=True)
+    user_name = Column(String, nullable=False, unique=True)
     hashed_password = Column(String, nullable=False)
     role = Column(String, nullable=False, default="viewer")
     is_active = Column(Boolean, nullable=False, default=True)
