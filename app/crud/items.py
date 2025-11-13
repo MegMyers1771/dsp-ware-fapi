@@ -144,6 +144,7 @@ def create_item(db: Session, item: schemas.ItemCreate):
 
     new_item = models.Item(
         name=item.name,
+        qty=item.qty,
         tab_id=item.tab_id,
         box_id=item.box_id,
         metadata_json=metadata,
@@ -271,6 +272,10 @@ def issue_item(db: Session, item_id: int, payload: schemas.ItemIssuePayload):
     if not status:
         raise HTTPException(status_code=404, detail="Status not found")
 
+    current_qty = db_item.qty or 0
+    if current_qty <= 0:
+        raise HTTPException(status_code=400, detail="Item has no remaining quantity")
+
     snapshot = json.dumps(
         {
             "item_name": db_item.name,
@@ -301,11 +306,16 @@ def issue_item(db: Session, item_id: int, payload: schemas.ItemIssuePayload):
 
     db.add(item_utilized)
 
+    should_delete = current_qty <= 1
     box_id = db_item.box_id
     deleted_position = db_item.box_position
 
-    db.delete(db_item)
-    _compress_box_positions(db, box_id, deleted_position)
+    if should_delete:
+        db.delete(db_item)
+        _compress_box_positions(db, box_id, deleted_position)
+    else:
+        db_item.qty = current_qty - 1
+
     db.commit()
     db.refresh(item_utilized)
     return item_utilized

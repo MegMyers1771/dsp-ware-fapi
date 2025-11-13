@@ -104,8 +104,8 @@
 
     <div class="mb-3"></div>
 
-    <div id="boxesTableContainer">
-      <table id="boxesTable" class="table table-hover table-striped">
+    <div id="boxesTableContainer" class="boxes-table-wrapper table-responsive">
+      <table id="boxesTable" class="table table-hover table-striped mb-0">
         <thead class="table-dark">
           <tr>
             <th style="width:80px">ID</th>
@@ -313,6 +313,10 @@
           <label class="form-label">Название айтема</label>
           <input type="text" id="itemName" class="form-control" placeholder="" required />
         </div>
+        <div class="mb-3">
+          <label class="form-label">Количество</label>
+          <input type="number" id="itemQty" class="form-control" min="1" step="1" value="1" required />
+        </div>
         <div id="tabFieldsContainer" class="mb-3"></div>
         <div class="d-flex justify-content-end gap-2 pt-3 border-top">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="offcanvas">Отмена</button>
@@ -442,7 +446,7 @@
       </div>
     </div>
   </div>
-
+  <script src="/config.js"></script>
   <script type="module" src="/static/js/tab.js?v=6"></script>
 
 </body>

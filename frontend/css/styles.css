@@ -44,3 +44,12 @@ th, td {
 th {
   background: #eee;
 }
+
+.boxes-table-wrapper {
+  max-height: 520px;
+  overflow-y: auto;
+}
+
+.boxes-table-wrapper table {
+  margin-bottom: 0;
+}

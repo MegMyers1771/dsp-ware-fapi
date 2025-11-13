@@ -75,9 +75,9 @@ def delete_tab(db: Session, tab_id: int):
         raise HTTPException(status_code=404, detail="Tab not found")
 
     # Проверка количества айтемов
-    item_count = db.query(models.Item).filter(models.Item.tab_id == tab_id).count()
-    if item_count >= 100:
-        raise HTTPException(status_code=400, detail="Tab cannot be deleted (contains 100+ items)")
+    # item_count = db.query(models.Item).filter(models.Item.tab_id == tab_id).count()
+    # if item_count >= 100:
+    #     raise HTTPException(status_code=400, detail="Tab cannot be deleted (contains 100+ items)")
 
     db.delete(tab)
     db.commit()

@@ -1,6 +1,9 @@
 import { getAuthToken } from "./common/authStore.js";
 
-export const API_URL = "http://127.0.0.1:8000";
+const globalConfig =
+  typeof window !== "undefined" && window.__APP_CONFIG ? window.__APP_CONFIG : {};
+
+export const API_URL = globalConfig.API_URL || "http://127.0.0.1:8000";
 
 function buildHeaders(headers = {}, body) {
   const result = { ...headers };
@@ -158,11 +161,12 @@ export async function createBox(tabId, name, description) {
 }
 
 // ---- Items ----
-export async function addItem(tabId, boxId, name, metadata_json) {
+export async function addItem(tabId, boxId, name, qty, metadata_json) {
   const res = await authFetch(`${API_URL}/items`, {
     method: "POST",
     body: JSON.stringify({
       name,
+      qty,
       tab_id: tabId,
       box_id: boxId,
       metadata_json,
@@ -232,6 +236,48 @@ export async function reorderItems(boxId, orderedIds) {
     throw new Error(text || "Не удалось сохранить порядок айтемов");
   }
 
+  return await res.json();
+}
+
+// ---- Parser ----
+export async function fetchParsedTabSummaries() {
+  const res = await authFetch(`${API_URL}/parser/tabs`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Не удалось загрузить список вкладок");
+  }
+  return await res.json();
+}
+
+export async function fetchParsedTabDetail(tabName) {
+  const res = await authFetch(`${API_URL}/parser/tabs/${encodeURIComponent(tabName)}`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Не удалось загрузить файл");
+  }
+  return await res.json();
+}
+
+export async function importParsedTab(tabName) {
+  const res = await authFetch(`${API_URL}/parser/tabs/${encodeURIComponent(tabName)}/import`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Не удалось импортировать вкладку");
+  }
+  return await res.json();
+}
+
+export async function runParserJob(payload) {
+  const res = await authFetch(`${API_URL}/parser/run`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Не удалось выполнить парсинг");
+  }
   return await res.json();
 }
 

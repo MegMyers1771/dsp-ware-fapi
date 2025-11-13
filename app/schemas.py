@@ -192,15 +192,17 @@ class BoxUpdate(BoxBase):
 
 # --- Items ---
 class ItemBase(BaseModel):
-    name: str
-    qty: int = 1
+    name: constr(strip_whitespace=True, min_length=1)
+    qty: int = Field(..., ge=1)
     position: Optional[int] = 1
     metadata_json: Dict[str, Any] = Field(default_factory=dict)
     tag_ids: List[int] = Field(default_factory=list)
 
+
 class ItemCreate(ItemBase):
     tab_id: int
     box_id: Optional[int]
+
 
 class ItemRead(ItemBase):
     id: int
@@ -209,15 +211,63 @@ class ItemRead(ItemBase):
     box_position: int
 
     model_config = ConfigDict(from_attributes=True)
-        
-class ItemUpdate(ItemBase):
+
+
+class ItemUpdate(BaseModel):
+    name: Optional[constr(strip_whitespace=True, min_length=1)] = None
+    qty: Optional[int] = Field(None, ge=1)
+    position: Optional[int] = None
+    metadata_json: Optional[Dict[str, Any]] = None
+    tag_ids: Optional[List[int]] = None
     box_id: Optional[int]
-    # name: Optional[str]
-    # box_id: Optional[int]
-    # position: Optional[int]
-    # metadata_json: Optional[Dict[str, Any]]
 
 
 class ItemReorderPayload(BaseModel):
     box_id: int
     ordered_ids: List[int] = Field(min_length=1)
+
+
+# --- Parser / Imports ---
+class ParsedTabSummary(BaseModel):
+    name: str
+    boxes_count: int
+    items_count: int
+    fields_count: int
+    has_allowed_values: bool = False
+
+
+class ParsedTabBoxDetail(BaseModel):
+    name: str
+    items: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class ParsedTabDetail(BaseModel):
+    name: str
+    enable_pos: bool = True
+    fields: List[str] = Field(default_factory=list)
+    allowed_values: Dict[str, List[Any]] = Field(default_factory=dict)
+    boxes: List[ParsedTabBoxDetail] = Field(default_factory=list)
+
+
+class ParserImportResult(BaseModel):
+    tab_id: int
+    fields_created: int
+    boxes_created: int
+    items_created: int
+
+
+class ParserRunPayload(BaseModel):
+    spreadsheet_id: str
+    worksheet_name: str
+    box_column: str
+    fields: Dict[str, str]
+    reserved_ranges: Dict[str, str]
+    enable_pos: bool = True
+
+
+class ParserRunResponse(BaseModel):
+    worksheet_name: str
+    file_name: str
+    boxes_count: int
+    items_count: int
+    enable_pos: bool = True

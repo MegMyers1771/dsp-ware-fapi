@@ -90,6 +90,78 @@ def test_issue_item_flow(client: TestClient):
         assert stored_history.responsible_user.email == responsible_email
 
 
+def test_issue_item_decrements_quantity(client: TestClient):
+    tab_res = client.post("/tabs", json={"name": "Qty Tab"})
+    assert tab_res.status_code == 200
+    tab_id = tab_res.json()["id"]
+
+    field_res = client.post(
+        "/tab_fields",
+        json={"tab_id": tab_id, "name": "Spec", "strong": False},
+    )
+    assert field_res.status_code == 200
+
+    box_res = client.post(
+        "/boxes",
+        json={"tab_id": tab_id, "name": "Qty Box", "description": ""},
+    )
+    assert box_res.status_code == 200
+    box_id = box_res.json()["id"]
+
+    item_res = client.post(
+        "/items/",
+        json={
+            "name": "Multi Item",
+            "tab_id": tab_id,
+            "box_id": box_id,
+            "metadata_json": {"Spec": "value"},
+            "tag_ids": [],
+            "qty": 3,
+            "position": 1,
+        },
+    )
+    assert item_res.status_code == 200, item_res.text
+    item_id = item_res.json()["id"]
+
+    status_res = client.post("/statuses/", json={"name": "IssuedQty", "color": "#123123"})
+    assert status_res.status_code == 200
+    status_id = status_res.json()["id"]
+
+    responsible_email = "qty-check@example.com"
+    ensure_user(client, responsible_email)
+
+    def issue_once():
+        resp = client.post(
+            f"/items/{item_id}/issue",
+            json={
+                "status_id": status_id,
+                "responsible_email": responsible_email,
+                "serial_number": None,
+                "invoice_number": None,
+            },
+        )
+        assert resp.status_code == 200, resp.text
+
+    issue_once()
+    items_after_first = client.get(f"/items/{box_id}")
+    assert items_after_first.status_code == 200
+    payload = items_after_first.json()
+    assert len(payload) == 1
+    assert payload[0]["qty"] == 2
+
+    issue_once()
+    items_after_second = client.get(f"/items/{box_id}")
+    assert items_after_second.status_code == 200
+    payload = items_after_second.json()
+    assert len(payload) == 1
+    assert payload[0]["qty"] == 1
+
+    issue_once()
+    items_after_third = client.get(f"/items/{box_id}")
+    assert items_after_third.status_code == 200
+    assert items_after_third.json() == []
+
+
 def test_issue_history_listing(client: TestClient):
     tab_res = client.post("/tabs", json={"name": "History Tab"})
     assert tab_res.status_code == 200

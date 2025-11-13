@@ -106,7 +106,7 @@ class Item(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
-    qty = Column(Integer, default=1)
+    qty = Column(Integer, nullable=False, default=1)
     box_position = Column(Integer, nullable=False, default=1)
     metadata_json = Column(JSON, default={})
     tab_id = Column(Integer, ForeignKey("tabs.id"), nullable=False)

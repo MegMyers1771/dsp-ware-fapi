@@ -83,4 +83,12 @@ function wireQuickActions(tagManager) {
       window.location.href = "/history";
     });
   }
+
+  const parserBtn = document.getElementById("dropdown-open-parser");
+  if (parserBtn) {
+    parserBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      window.location.href = "/parser";
+    });
+  }
 }

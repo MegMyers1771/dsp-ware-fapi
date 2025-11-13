@@ -96,11 +96,11 @@ async function renderBoxes(state, tagManagerApi) {
     console.warn("Не удалось обновить кэш тэгов для боксов", err);
   }
 
-  let tbody = document.getElementById("boxesTableBody");
-  const container = document.getElementById("boxesTableContainer") || document.getElementById("boxesTable");
+  const container = document.getElementById("boxesTableContainer");
+  let tbody = container?.querySelector("#boxesTableBody") || document.getElementById("boxesTableBody");
   if (!tbody && container) {
     container.innerHTML = `
-      <table id="boxesTable" class="table table-hover table-striped">
+      <table id="boxesTable" class="table table-hover table-striped mb-0">
         <thead class="table-dark">
           <tr>
             <th style="width:80px">ID</th>
@@ -114,7 +114,7 @@ async function renderBoxes(state, tagManagerApi) {
         <tbody id="boxesTableBody"></tbody>
       </table>
     `;
-    tbody = document.getElementById("boxesTableBody");
+    tbody = container.querySelector("#boxesTableBody");
   }
 
   if (!tbody) return;
@@ -191,6 +191,7 @@ async function openBoxModal(state, tagManagerApi, boxId, highlightItems = null, 
         : { key: "__seq", label: "№", style: "width:70px" },
       { key: "__tags", label: "Тэги", style: "width:140px", class: "text-center" },
       { key: "__name", label: "Название" },
+      { key: "__qty", label: "Кол-во", style: "width:110px", class: "text-center" },
       ...metaKeys.map((key) => ({ key, label: key })),
       { key: "__actions", label: "Действия", style: "width:140px", class: "text-center" },
     ];
@@ -230,6 +231,8 @@ async function openBoxModal(state, tagManagerApi, boxId, highlightItems = null, 
                   })}</td>`
                 );
                 cells.push(`<td class="align-middle">${esc(item.name)}</td>`);
+                const qtyLabel = typeof item.qty === "number" ? item.qty : "—";
+                cells.push(`<td class="align-middle text-center">${esc(qtyLabel)}</td>`);
                 metaKeys.forEach((key) => cells.push(`<td class="align-middle">${esc((item.metadata_json || {})[key])}</td>`));
                 cells.push(`
                   <td class="text-center align-middle">
@@ -442,6 +445,10 @@ function toggleBoxModalShift(state, enable) {
 async function issueItem(state, issueFormController, item, box) {
   if (!issueFormController) {
     showTopAlert("Форма выдачи недоступна", "danger");
+    return;
+  }
+  if (!item || typeof item.qty !== "number" || item.qty <= 0) {
+    showTopAlert("Для этого айтема нет доступного количества", "warning");
     return;
   }
   await issueFormController.open(item, box);
@@ -690,9 +697,11 @@ function buildIssueSummary(state, item, box) {
   const esc = (value) => escapeHtml(value ?? "—");
   const tabName = resolveTabName(state, item?.tab_id ?? box?.tab_id);
   const boxLabel = box?.name || (box?.id ? `Ящик #${box.id}` : "—");
+  const qtyLabel = typeof item?.qty === "number" ? item.qty : "—";
   return `
     <div class="fw-semibold">${esc(item?.name || "Без названия")}</div>
     <div class="text-muted small">Вкладка: ${esc(tabName)} · Ящик: ${esc(boxLabel)}</div>
+    <div class="text-muted small">Кол-во на складе: ${esc(qtyLabel)}</div>
   `;
 }
 
@@ -723,6 +732,7 @@ async function openAddItemOffcanvas(state, box, { item = null } = {}) {
   });
 
   const nameInput = document.getElementById("itemName");
+  const qtyInput = document.getElementById("itemQty");
   const boxInput = document.getElementById("itemBoxId");
   const tabInput = document.getElementById("itemTabId");
   const titleEl = document.getElementById("addItemOffcanvasLabel");
@@ -731,6 +741,7 @@ async function openAddItemOffcanvas(state, box, { item = null } = {}) {
   if (boxInput) boxInput.value = item?.box_id ?? box.id;
   if (tabInput) tabInput.value = item?.tab_id ?? box.tab_id;
   if (nameInput) nameInput.value = item?.name ?? "";
+  if (qtyInput) qtyInput.value = String(item?.qty ?? 1);
 
   if (titleEl) {
     titleEl.textContent = isEdit
@@ -798,6 +809,8 @@ async function handleItemFormSubmit(event, state, getTagManager) {
   const boxId = parseInt(document.getElementById("itemBoxId").value, 10);
   const nameInput = document.getElementById("itemName");
   const name = nameInput.value.trim();
+  const qtyInput = document.getElementById("itemQty");
+  const qtyValue = Number.parseInt(qtyInput?.value ?? "", 10);
   const metadata_json = {};
   const errors = [];
 
@@ -817,8 +830,16 @@ async function handleItemFormSubmit(event, state, getTagManager) {
     if (val) metadata_json[key] = val;
   });
 
-  if (!name && Object.keys(metadata_json).length === 0) {
-    return showTopAlert("Заполните имя или хотя бы одно значение атрибутов", "danger");
+  if (!name) {
+    showTopAlert("Введите название айтема", "danger");
+    nameInput?.focus();
+    return;
+  }
+
+  if (!Number.isInteger(qtyValue) || qtyValue <= 0) {
+    showTopAlert("Количество должно быть больше нуля", "danger");
+    qtyInput?.focus();
+    return;
   }
 
   if (errors.length) {
@@ -833,7 +854,7 @@ async function handleItemFormSubmit(event, state, getTagManager) {
   if (mode === "edit" && state.itemFormMode?.itemId) {
     const payload = {
       name,
-      qty: state.itemFormMode?.qty ?? 1,
+      qty: qtyValue,
       position: state.itemFormMode?.position ?? 1,
       metadata_json,
       tag_ids: state.itemFormMode?.tagIds ?? [],
@@ -857,7 +878,7 @@ async function handleItemFormSubmit(event, state, getTagManager) {
 
     const payload = {
       name,
-      qty: 1,
+      qty: qtyValue,
       position: 1,
       metadata_json,
       tag_ids: [],
@@ -882,6 +903,9 @@ async function handleItemFormSubmit(event, state, getTagManager) {
     highlightId = createdItem?.id || null;
     showTopAlert("Айтем добавлен", "success");
     nameInput.value = "";
+    if (qtyInput) {
+      qtyInput.value = "1";
+    }
     document.querySelectorAll("#tabFieldsContainer [data-field-name]").forEach((el) => (el.value = ""));
   }
 

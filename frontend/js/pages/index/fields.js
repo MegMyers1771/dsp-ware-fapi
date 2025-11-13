@@ -2,9 +2,9 @@ import { escapeHtml } from "../../common/dom.js";
 
 let allowedValueSanitizeRegex;
 try {
-  allowedValueSanitizeRegex = new RegExp("[^\\p{L}\\d\\-_%!,\\s]", "gu");
+  allowedValueSanitizeRegex = new RegExp("[^\\p{L}\\d\\-_%!,/\\s]", "gu");
 } catch {
-  allowedValueSanitizeRegex = /[^A-Za-z0-9\-_%!,\s]/g;
+  allowedValueSanitizeRegex = /[^A-Za-z0-9\-_%!,\/\s]/g;
 }
 
 const tokenizeAllowedValues = (value) =>

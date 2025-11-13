@@ -24,6 +24,7 @@ def _create_item(client: TestClient, tab_id: int, box_id: int, name: str):
         "name": name,
         "tab_id": tab_id,
         "box_id": box_id,
+        "qty": 1,
         "metadata_json": {"Spec": name},
     }
     resp = client.post("/items/", json=payload)

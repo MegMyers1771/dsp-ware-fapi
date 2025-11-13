@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Парсер вкладок — DSP-Ware</title>
+  <link rel="stylesheet" href="/static/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="/static/css/tag-elements.css" />
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg bg-dark" data-bs-theme="dark">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="/">DSP-Ware_alpha</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#parserNav" aria-controls="parserNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="parserNav">
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+          <li class="nav-item">
+            <a class="btn btn-outline-light" href="/">Назад к вкладкам</a>
+          </li>
+        </ul>
+        <div class="d-flex align-items-center gap-2 flex-wrap ms-auto">
+          <button class="btn btn-outline-info btn-sm" id="parserRefreshBtn" type="button">Обновить список</button>
+          <span id="currentUserBadge" class="badge text-bg-secondary d-none"></span>
+          <button type="button" id="loginBtn" class="btn btn-outline-light btn-sm">Войти</button>
+          <button type="button" id="logoutBtn" class="btn btn-outline-danger btn-sm d-none">Выйти</button>
+          <button type="button" id="userManagementBtn" class="btn btn-outline-info btn-sm d-none">Пользователи</button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+      <div>
+        <h2 class="mb-1">Импорт вкладок из Google Sheets</h2>
+        <p class="text-muted small mb-0">Сначала запусти парсер, затем импортируй готовый JSON в базу</p>
+      </div>
+      <button class="btn btn-outline-secondary btn-sm" id="parserGoHomeBtn" type="button">Главная</button>
+    </div>
+
+    <div class="card mb-4">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Настройки парсинга</span>
+        <button type="button" class="btn btn-outline-light btn-sm" id="parserFillExampleBtn">Заполнить пример</button>
+      </div>
+      <div class="card-body">
+        <form id="parserConfigForm" class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label">Spreadsheet ID</label>
+            <input type="text" class="form-control" id="parserSpreadsheetId" placeholder="1BUoLe_..." required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Worksheet name</label>
+            <input type="text" class="form-control" id="parserWorksheetName" placeholder="HDD" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Колонка с названием ящика</label>
+            <input type="text" class="form-control" id="parserBoxColumn" placeholder="Ящик" required>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Credentials</label>
+            <input type="text" class="form-control" value="test-credentials.json (используется автоматически)" disabled>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Поля (JSON, обязательные: &laquo;Имя&raquo;, &laquo;Кол-во&raquo;)</label>
+            <textarea id="parserFieldsJson" class="form-control font-monospace" rows="4" placeholder='{ "Имя": "Товар", "Кол-во": "Шт" }' required></textarea>
+            <div class="form-text">Формат: {"поле_в_приложении": "колонка_листа"}</div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label d-block">Включить POS</label>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="parserEnablePos" checked>
+              <label class="form-check-label" for="parserEnablePos">Использовать позиционирование (POS) для ящиков</label>
+            </div>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Диапазоны с allowed values (JSON, опционально)</label>
+            <textarea id="parserReservedJson" class="form-control font-monospace" rows="3" placeholder='{ "Вендор": "G6:G8" }'></textarea>
+            <div class="form-text">Формат: {"поле_в_приложении": "A1:A10"}</div>
+          </div>
+          <div class="col-12 d-flex justify-content-end gap-2">
+            <button type="reset" class="btn btn-outline-secondary">Очистить</button>
+            <button type="submit" class="btn btn-primary" id="parserSubmitBtn">Запустить парсер</button>
+          </div>
+          <div class="col-12">
+            <div id="parserFormStatus" class="small"></div>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="parserEmptyState" class="alert alert-secondary">Загрузка...</div>
+
+    <div class="table-responsive">
+      <table class="table table-hover align-middle" id="parsedTabsTable">
+        <thead class="table-dark">
+          <tr>
+            <th>Название</th>
+            <th style="width:120px" class="text-center">Полей</th>
+            <th style="width:120px" class="text-center">Ящиков</th>
+            <th style="width:140px" class="text-center">Айтемов</th>
+            <th style="width:140px" class="text-center">Allowed</th>
+            <th style="width:200px" class="text-center">Действия</th>
+          </tr>
+        </thead>
+        <tbody id="parsedTabsBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Preview Modal -->
+  <div class="modal fade" id="parsedTabPreviewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Предпросмотр вкладки</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div id="parsedTabPreviewContent">
+            <div class="text-muted">Загрузка...</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Login Modal -->
+  <div class="modal fade" id="loginModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Войти</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <form id="loginForm" class="d-flex flex-column gap-3">
+            <div>
+              <label class="form-label">Email</label>
+              <input type="email" name="email" class="form-control" required />
+            </div>
+            <div>
+              <label class="form-label">Пароль</label>
+              <input type="password" name="password" class="form-control" required />
+            </div>
+            <button type="submit" class="btn btn-primary">Войти</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- User Management Modal -->
+  <div class="modal fade" id="userManagementModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Пользователи</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div id="userManagementList" class="mb-4"></div>
+          <hr>
+          <form id="createUserForm" class="row g-3">
+            <div class="col-md-5">
+              <label class="form-label">Email</label>
+              <input type="email" name="newUserEmail" class="form-control" required />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Пароль</label>
+              <input type="password" name="newUserPassword" class="form-control" required />
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Роль</label>
+              <select name="newUserRole" class="form-select">
+                <option value="viewer">viewer</option>
+                <option value="editor">editor</option>
+                <option value="admin">admin</option>
+              </select>
+            </div>
+            <div class="col-12 text-end">
+              <button type="submit" class="btn btn-primary">Создать пользователя</button>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/config.js"></script>
+  <script type="module" src="/static/js/parser.js"></script>
+</body>
+</html>

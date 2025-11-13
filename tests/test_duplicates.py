@@ -85,6 +85,7 @@ def test_item_names_can_repeat_within_box(client: TestClient):
         "name": item_name,
         "tab_id": tab["id"],
         "box_id": box["id"],
+        "qty": 1,
         "metadata_json": {"Spec": "Value"},
     }
 

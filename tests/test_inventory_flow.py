@@ -87,6 +87,7 @@ def test_create_items_with_tags(client: TestClient, setup_data):
                 "name": models[n],
                 "tab_id": tab_id,
                 "box_id": box["id"],
+                "qty": 1,
                 "metadata_json": metadata,
             }
             
@@ -194,6 +195,7 @@ def test_box_position_reorders_on_delete(client: TestClient):
                 "name": f"Item {idx}",
                 "tab_id": tab["id"],
                 "box_id": box["id"],
+                "qty": 1,
                 "metadata_json": {"Spec": f"Value {idx}"},
             },
         )
@@ -239,6 +241,7 @@ def test_field_rename_preserves_item_metadata(client: TestClient):
             "name": "Stable Item",
             "tab_id": tab["id"],
             "box_id": box["id"],
+            "qty": 1,
             "metadata_json": {"Spec": "Value"},
         },
     )
