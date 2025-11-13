@@ -7,7 +7,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.main import app
 from app.database import get_db
-from app.models import Base  # ⬅️ Очень важно: импортируем Base из моделей!
+from app.models import Base 
 
 # Тестовая БД (SQLite, чтобы не портить Postgres)
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
@@ -41,5 +41,29 @@ app.dependency_overrides[get_db] = override_get_db
 
 @pytest.fixture(scope="module")
 def client():
-    """Возвращаем TestClient с тестовой БД."""
-    return TestClient(app)
+    """Возвращаем TestClient с тестовой БД и авторизацией администратора."""
+    bootstrap_client = TestClient(app)
+    admin_payload = {
+        "email": "admin@example.com",
+        "password": "adminpass",
+        "role": "admin",
+    }
+    bootstrap_client.post("/auth/register", json=admin_payload)
+    login_resp = bootstrap_client.post(
+        "/auth/login",
+        json={"email": admin_payload["email"], "password": admin_payload["password"]},
+    )
+    assert login_resp.status_code == 200
+    token = login_resp.json()["access_token"]
+    class AuthedClient(TestClient):
+        def __init__(self, application, token):
+            super().__init__(application)
+            self._token = token
+
+        def request(self, method, url, **kwargs):  # type: ignore[override]
+            headers = kwargs.pop("headers", {}) or {}
+            if "Authorization" not in headers:
+                headers["Authorization"] = f"Bearer {self._token}"
+            return super().request(method, url, headers=headers, **kwargs)
+
+    return AuthedClient(app, token)

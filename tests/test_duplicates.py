@@ -65,7 +65,7 @@ def test_tag_name_uniqueness(client: TestClient):
     assert dup_update.status_code == 400
 
 
-def test_item_name_uniqueness_within_box(client: TestClient):
+def test_item_names_can_repeat_within_box(client: TestClient):
     tab_resp = client.post("/tabs/", json={"name": _unique("TabItem")})
     assert tab_resp.status_code == 200
     tab = tab_resp.json()
@@ -92,7 +92,7 @@ def test_item_name_uniqueness_within_box(client: TestClient):
     assert first_item_resp.status_code == 200
 
     dup_item_resp = client.post("/items/", json=base_payload)
-    assert dup_item_resp.status_code == 400
+    assert dup_item_resp.status_code == 200
 
     second_payload = {**base_payload, "name": _unique("ItemOther")}
     second_item_resp = client.post("/items/", json=second_payload)
@@ -112,4 +112,5 @@ def test_item_name_uniqueness_within_box(client: TestClient):
         f"/items/{second_item['id']}",
         json=dup_update_payload,
     )
-    assert dup_update_resp.status_code == 400
+    assert dup_update_resp.status_code == 200
+    assert dup_update_resp.json()["name"] == item_name

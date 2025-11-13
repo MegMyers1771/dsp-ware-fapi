@@ -1,12 +1,9 @@
 import pytest
 from fastapi.testclient import TestClient
-from app.main import app  # ← Импортируй свой FastAPI app
-
-client = TestClient(app)
 
 
 @pytest.fixture(scope="module")
-def setup_data():
+def setup_data(client: TestClient):
     """
     Подготавливаем данные:
     - 2 вкладки (CPU, RAM)
@@ -54,7 +51,7 @@ def setup_data():
     return {"tabs": tabs, "boxes": boxes, "tags": tags}
 
 
-def test_create_items_with_tags(setup_data):
+def test_create_items_with_tags(client: TestClient, setup_data):
     """
     Создаём по 3 айтема в каждом боксе:
     - для вкладки CPU: разные процессоры
@@ -145,7 +142,7 @@ def test_create_items_with_tags(setup_data):
 
 
 
-def test_search_by_tab_and_tag(setup_data):
+def test_search_by_tab_and_tag(client: TestClient, setup_data):
     """
     Проверяем, что поиск по вкладке и тегу работает.
     """
@@ -167,7 +164,7 @@ def test_search_by_tab_and_tag(setup_data):
     assert "8GB" in items['results'][0]["name"]
 
 
-def test_box_position_reorders_on_delete():
+def test_box_position_reorders_on_delete(client: TestClient):
     """
     Проверяем, что при удалении айтема позиции в боксе сжимаются.
     """
@@ -214,3 +211,73 @@ def test_box_position_reorders_on_delete():
     assert len(box_items) == 2
     assert [item["box_position"] for item in box_items] == [1, 2]
     assert [item["name"] for item in box_items] == ["Item 0", "Item 2"]
+
+
+def test_field_rename_preserves_item_metadata(client: TestClient):
+    tab_resp = client.post("/tabs/", json={"name": "StableKeyTab"})
+    assert tab_resp.status_code == 200
+    tab = tab_resp.json()
+
+    field_resp = client.post("/tab_fields/", json={"tab_id": tab["id"], "name": "Spec"})
+    assert field_resp.status_code == 200
+    field = field_resp.json()
+
+    box_resp = client.post(
+        "/boxes/",
+        json={
+            "name": "Stable Box",
+            "tab_id": tab["id"],
+            "description": None,
+        },
+    )
+    assert box_resp.status_code == 200
+    box = box_resp.json()
+
+    item_resp = client.post(
+        "/items/",
+        json={
+            "name": "Stable Item",
+            "tab_id": tab["id"],
+            "box_id": box["id"],
+            "metadata_json": {"Spec": "Value"},
+        },
+    )
+    assert item_resp.status_code == 200, item_resp.text
+
+    rename_resp = client.put(
+        f"/tab_fields/{field['id']}",
+        json={"name": "Specification"},
+    )
+    assert rename_resp.status_code == 200, rename_resp.text
+
+    items_resp = client.get(f"/items/{box['id']}")
+    assert items_resp.status_code == 200
+    payload = items_resp.json()
+    assert len(payload) == 1
+    metadata = payload[0]["metadata_json"]
+    assert metadata.get("Specification") == "Value"
+    assert "Spec" not in metadata
+
+
+def test_status_crud_roundtrip(client: TestClient):
+    create_resp = client.post("/statuses/", json={"name": "Available", "color": "#22aa55"})
+    assert create_resp.status_code == 200, create_resp.text
+    status_payload = create_resp.json()
+    assert status_payload["name"] == "Available"
+    assert status_payload["color"] == "#22aa55"
+
+    list_resp = client.get("/statuses/")
+    assert list_resp.status_code == 200
+    statuses = list_resp.json()
+    assert any(status["name"] == "Available" for status in statuses)
+
+    update_resp = client.put(
+        f"/statuses/{status_payload['id']}", json={"name": "In Stock", "color": "#0088ff"}
+    )
+    assert update_resp.status_code == 200
+    updated = update_resp.json()
+    assert updated["name"] == "In Stock"
+    assert updated["color"] == "#0088ff"
+
+    delete_resp = client.delete(f"/statuses/{status_payload['id']}")
+    assert delete_resp.status_code == 200
