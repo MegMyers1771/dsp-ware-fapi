@@ -6,3 +6,4 @@ __pycache__/
 .vscode/
 test.db
 test-credentials.json
+alembic/__archive__/*
