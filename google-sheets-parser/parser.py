@@ -1,9 +1,39 @@
+import argparse
 import json
-import pandas as pd
 import os
+from typing import Any, Dict, Union
+
+import pandas as pd
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+
+
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
+
+
+def _load_credentials(creds_source: Union[str, Dict[str, Any], Credentials]) -> Credentials:
+    if isinstance(creds_source, Credentials):
+        return creds_source
+
+    if isinstance(creds_source, dict):
+        return Credentials.from_service_account_info(creds_source, scopes=SCOPES)
+
+    if isinstance(creds_source, str):
+        if os.path.isfile(creds_source):
+            return Credentials.from_service_account_file(creds_source, scopes=SCOPES)
+        try:
+            data = json.loads(creds_source)
+        except json.JSONDecodeError as exc:
+            raise FileNotFoundError(f"Credentials file '{creds_source}' not found") from exc
+        return Credentials.from_service_account_info(data, scopes=SCOPES)
+
+    raise TypeError("Unsupported credentials source type")
+
+
+def _build_sheets_service(creds_source: Union[str, Dict[str, Any], Credentials]):
+    creds = _load_credentials(creds_source)
+    return build('sheets', 'v4', credentials=creds)
 
 
 
@@ -11,10 +41,8 @@ from googleapiclient.errors import HttpError
 # DATA VALIDATION PARSER
 ####################################
 
-def get_data_validation_values(spreadsheet_id, range_name, sheet_name, creds_file):
-    scopes = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
-    creds = Credentials.from_service_account_file(creds_file, scopes=scopes)
-    service = build('sheets', 'v4', credentials=creds)
+def get_data_validation_values(spreadsheet_id, range_name, sheet_name, creds_source):
+    service = _build_sheets_service(creds_source)
 
     # 1. Определяем sheetId вкладки по имени
     metadata = service.spreadsheets().get(
@@ -65,10 +93,8 @@ def get_data_validation_values(spreadsheet_id, range_name, sheet_name, creds_fil
 # SHEET LOADER
 ####################################
 
-def load_sheet_df(spreadsheet_id, worksheet_name, creds_file):
-    scopes = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
-    creds = Credentials.from_service_account_file(creds_file, scopes=scopes)
-    service = build('sheets', 'v4', credentials=creds)
+def load_sheet_df(spreadsheet_id, worksheet_name, creds_source):
+    service = _build_sheets_service(creds_source)
 
     resp = service.spreadsheets().values().get(
         spreadsheetId=spreadsheet_id,
@@ -187,52 +213,89 @@ def parse_boxes(df, config, reserved_values):
 # RUN
 ####################################
 
-def main(config):
-    spreadsheet_id = config["spreadsheet_id"]
-    sheet_name = config["worksheet_name"]
-    creds = config["creds"]
+def main(config, creds_override=None):
+    config_data = dict(config)
+    spreadsheet_id = config_data["spreadsheet_id"]
+    sheet_name = config_data["worksheet_name"]
+    creds_source = creds_override if creds_override is not None else config_data.get("creds")
+    if creds_source is None:
+        raise ValueError("Credentials are not provided. Pass them via config['creds'] or CLI.")
 
     print("Loading sheet data...")
-    df = load_sheet_df(spreadsheet_id, sheet_name, creds)
+    df = load_sheet_df(spreadsheet_id, sheet_name, creds_source)
 
     print("Extracting reserved values...")
     reserved_values = {}
+    direct_allowed = config_data.get("allowed_values") or config_data.get("reserved") or {}
+    if isinstance(direct_allowed, dict):
+        for field, values in direct_allowed.items():
+            if values is None:
+                continue
+            reserved_values[field] = list(values)
 
-    for field, range_ in config["reserved_ranges"].items():
+    for field, range_ in (config_data.get("reserved_ranges") or {}).items():
         reserved_values[field] = get_data_validation_values(
             spreadsheet_id,
             range_,
             sheet_name,
-            creds
+            creds_source
         )
         print(f"{field}: {reserved_values[field]}")
 
     print("Parsing boxes...")
-    boxes = parse_boxes(df, config, reserved_values)
+    boxes = parse_boxes(df, config_data, reserved_values)
 
     return boxes
 # json.dumps(boxes, indent=4, ensure_ascii=False)
 
 
+def _load_json_file(path):
+    with open(path, encoding="utf-8") as fp:
+        return json.load(fp)
+
+
+def _write_output(result, output_path):
+    dir_name = os.path.dirname(output_path)
+    if dir_name:
+        os.makedirs(dir_name, exist_ok=True)
+    with open(output_path, 'w+', encoding='utf-8') as file:
+        json.dump(result, file, indent=4, ensure_ascii=False)
+    print(f"{output_path} dumped")
+
+
 if __name__ == "__main__":
-    from configs.general_conf import get_all_configs
-    
-    
-    all_configs = get_all_configs()
-    for conf in all_configs:
-        # with open()
+    parser = argparse.ArgumentParser(description="Google Sheet parser")
+    parser.add_argument("--config-json", help="Path to a JSON file with parser config.")
+    parser.add_argument("--creds-json", help="Path to a service-account credentials JSON file.")
+    parser.add_argument("--output", help="Path to output JSON (defaults to parsed-tabs/<worksheet>.json).")
+    args = parser.parse_args()
+
+    if not args.config_json and (args.creds_json or args.output):
+        parser.error("--creds-json/--output can only be used together with --config-json")
+
+    if args.config_json:
+        config_dict = _load_json_file(args.config_json)
+        creds_override = _load_json_file(args.creds_json) if args.creds_json else None
         try:
-            result = main(conf)
-            conf_name = result["worksheet_name"] + '.json'
-        
-            print(f"Total boxes in {conf_name} - {len(result["boxes"])}")
-            
-            parsed_path = os.path.join('parsed-tabs', conf_name)
-            with open(parsed_path, 'w+', encoding='utf-8') as file:
-                json.dump(result, file, indent=4)
-                
-            print(conf_name + " dumped")
-        except HttpError as ex:
-            print(f"Error parsing {conf.__str__()}")
-            
-        
+            result = main(config_dict, creds_override=creds_override)
+        except HttpError as exc:
+            print(f"Google API error: {exc}")
+            raise SystemExit(1) from exc
+
+        output_path = args.output or os.path.join('parsed-tabs', f"{result['worksheet_name']}.json")
+        _write_output(result, output_path)
+    else:
+        from configs.general_conf import get_all_configs
+
+        all_configs = get_all_configs()
+        for conf in all_configs:
+            try:
+                result = main(conf)
+                conf_name = result["worksheet_name"] + '.json'
+
+                print(f"Total boxes in {conf_name} - {len(result['boxes'])}")
+
+                parsed_path = os.path.join('parsed-tabs', conf_name)
+                _write_output(result, parsed_path)
+            except HttpError as ex:
+                print(f"Error parsing {conf}: {ex}")
