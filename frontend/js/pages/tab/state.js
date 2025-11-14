@@ -21,6 +21,7 @@ export function createTabState(tabId) {
     ui: {
       boxViewModalEl: null,
       boxViewModalDialogEl: null,
+      boxModalShiftSources: new Map(),
       addItemOffcanvasEl: null,
       addItemOffcanvasInstance: null,
       issueOffcanvasEl: null,

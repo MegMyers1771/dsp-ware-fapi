@@ -23,9 +23,11 @@ export function createBoxesController(state, elements) {
   state.ui.boxViewModalDialogEl = elements.boxViewModalDialog ?? null;
   state.ui.addItemOffcanvasEl = elements.addItemOffcanvas ?? null;
   if (state.ui.addItemOffcanvasEl) {
-    state.ui.addItemOffcanvasEl.addEventListener("show.bs.offcanvas", () => toggleBoxModalShift(state, true));
+    state.ui.addItemOffcanvasEl.addEventListener("show.bs.offcanvas", () =>
+      toggleBoxModalShift(state, true, "right", "addItem")
+    );
     state.ui.addItemOffcanvasEl.addEventListener("hidden.bs.offcanvas", () => {
-      toggleBoxModalShift(state, false);
+      toggleBoxModalShift(state, false, "right", "addItem");
       setItemFormMode(state);
     });
   }
@@ -38,8 +40,30 @@ export function createBoxesController(state, elements) {
     handleItemFormSubmit(event, state, () => tagManagerApi)
   );
 
+  const addItemOpenBoxBtn = elements.addItemOpenBoxBtn ?? document.getElementById("addModalOpenBoxBtn");
+  if (addItemOpenBoxBtn) {
+    addItemOpenBoxBtn.addEventListener("click", async () => {
+      const boxInput = document.getElementById("itemBoxId");
+      const boxId = Number(boxInput?.value || state.itemFormMode?.boxId);
+      if (!Number.isFinite(boxId) || boxId <= 0) {
+        showTopAlert("Сначала выберите ящик для айтема", "warning");
+        boxInput?.focus();
+        return;
+      }
+      await openBoxModal(state, tagManagerApi, boxId, null, { refreshOnly: false });
+    });
+  }
+
   state.ui.issueOffcanvasEl = document.getElementById("issueItemOffcanvas");
   state.ui.issueFormEl = document.getElementById("issueItemForm");
+  if (state.ui.issueOffcanvasEl) {
+    state.ui.issueOffcanvasEl.addEventListener("show.bs.offcanvas", () =>
+      toggleBoxModalShift(state, true, "left", "issue")
+    );
+    state.ui.issueOffcanvasEl.addEventListener("hidden.bs.offcanvas", () =>
+      toggleBoxModalShift(state, false, "left", "issue")
+    );
+  }
   const issueFormController = setupIssueOffcanvas(state, {
     async onIssued({ boxId } = {}) {
       const normalizedBoxId = Number(boxId ?? state.currentBoxViewBoxId);
@@ -201,7 +225,11 @@ async function openBoxModal(state, tagManagerApi, boxId, highlightItems = null, 
     const totalItems = items.length;
 
     const tableHtml = `
-      <div class="table-responsive">
+      <div class="box-table-scroll">
+        <div class="box-table-scroll-top">
+          <div class="box-table-scroll-spacer"></div>
+        </div>
+        <div class="table-responsive box-table-scroll-content">
         <table class="table table-hover table-sm small" style="min-width:${minWidth}px;">
           <thead class="table-dark">
             <tr>
@@ -251,10 +279,12 @@ async function openBoxModal(state, tagManagerApi, boxId, highlightItems = null, 
               .join("")}
           </tbody>
         </table>
+        </div>
       </div>
     `;
 
     content.innerHTML = tableHtml;
+    setupBoxTableScrollSync(content);
     if (state.currentTabEnablePos) {
       enableItemReorder(state, tagManagerApi, content, Number(boxId));
     }
@@ -328,7 +358,7 @@ async function openBoxModal(state, tagManagerApi, boxId, highlightItems = null, 
   modalEl.addEventListener(
     "hidden.bs.modal",
     () => {
-      toggleBoxModalShift(state, false);
+      toggleBoxModalShift(state, false, null, null);
       if (state.ui.addItemOffcanvasInstance) {
         try {
           state.ui.addItemOffcanvasInstance.hide();
@@ -437,9 +467,86 @@ function enableItemReorder(state, tagManagerApi, container, boxId) {
   });
 }
 
-function toggleBoxModalShift(state, enable) {
-  state.ui.boxViewModalDialogEl?.classList.toggle("shifted", !!enable);
-  state.ui.boxViewModalEl?.classList.toggle("stacked", !!enable);
+function setupBoxTableScrollSync(container) {
+  const wrapper = container.querySelector(".box-table-scroll");
+  const topScroller = wrapper?.querySelector(".box-table-scroll-top");
+  const spacer = wrapper?.querySelector(".box-table-scroll-spacer");
+  const contentScroller = wrapper?.querySelector(".box-table-scroll-content");
+  const table = contentScroller?.querySelector("table");
+  if (!wrapper || !topScroller || !spacer || !contentScroller || !table) return;
+
+  let syncingFromTop = false;
+  let syncingFromContent = false;
+
+  const syncWidths = () => {
+    const needsScroll = table.scrollWidth > contentScroller.clientWidth + 2;
+    wrapper.classList.toggle("box-table-scroll-active", needsScroll);
+    spacer.style.width = `${table.scrollWidth}px`;
+    if (!needsScroll) {
+      topScroller.scrollLeft = 0;
+    }
+  };
+
+  topScroller.addEventListener("scroll", () => {
+    if (syncingFromTop) return;
+    syncingFromContent = true;
+    contentScroller.scrollLeft = topScroller.scrollLeft;
+    syncingFromContent = false;
+  });
+
+  contentScroller.addEventListener("scroll", () => {
+    if (syncingFromContent) return;
+    syncingFromTop = true;
+    topScroller.scrollLeft = contentScroller.scrollLeft;
+    syncingFromTop = false;
+  });
+
+  if (typeof ResizeObserver !== "undefined") {
+    const observer = new ResizeObserver(syncWidths);
+    observer.observe(table);
+    observer.observe(contentScroller);
+    observer.observe(wrapper);
+  } else {
+    window.addEventListener("resize", syncWidths);
+  }
+
+  syncWidths();
+}
+
+function toggleBoxModalShift(state, enable, direction = "right", source = direction ?? "default") {
+  const dialogEl = state.ui.boxViewModalDialogEl || document.getElementById("boxViewModalDialog");
+  const modalEl = state.ui.boxViewModalEl || document.getElementById("boxViewModal");
+  if (!dialogEl || !modalEl) return;
+
+  if (!state.ui.boxModalShiftSources) {
+    state.ui.boxModalShiftSources = new Map();
+  }
+  const shifts = state.ui.boxModalShiftSources;
+
+  if (source == null) {
+    shifts.clear();
+  } else if (enable) {
+    const resolved = direction === "left" ? "left" : "right";
+    shifts.set(source, resolved);
+  } else {
+    shifts.delete(source);
+  }
+
+  const activeDirections = Array.from(shifts.values());
+  const currentDirection = activeDirections[activeDirections.length - 1] || null;
+
+  dialogEl.classList.remove("shifted-left", "shifted-right");
+  if (currentDirection === "left") {
+    dialogEl.classList.add("shifted-left");
+  } else if (currentDirection === "right") {
+    dialogEl.classList.add("shifted-right");
+  }
+
+  if (shifts.size) {
+    modalEl.classList.add("stacked");
+  } else {
+    modalEl.classList.remove("stacked");
+  }
 }
 
 async function issueItem(state, issueFormController, item, box) {
@@ -486,14 +593,23 @@ function setupSearchFilters(
       return;
     }
     fieldsContainer.innerHTML = fields
-      .map(
-        (field) => `
+      .map((field, index) => {
+        const safeName = String(field.name || `field-${index}`);
+        const inputId = `search-filter-${index}-${safeName}`.replace(/[^a-zA-Z0-9_-]/g, "");
+        const allowedValues = Array.isArray(field.allowed_values) ? field.allowed_values : null;
+        const datalistId = allowedValues?.length ? `${inputId}-list` : "";
+        const datalist = allowedValues?.length
+          ? `<datalist id="${datalistId}">${allowedValues.map((value) => `<option value="${escapeHtml(value)}"></option>`).join("")}</datalist>`
+          : "";
+        const extraAttrs = datalistId ? `list="${escapeHtml(datalistId)}"` : "";
+        return `
           <div class="col-12 col-md-6">
-            <label class="form-label">${escapeHtml(field.name)}</label>
-            <input type="text" class="form-control" data-filter-field="${escapeHtml(field.name)}" placeholder="Значение" />
+            <label class="form-label" for="${inputId}">${escapeHtml(safeName)}</label>
+            <input type="text" class="form-control" id="${inputId}" data-filter-field="${escapeHtml(safeName)}" placeholder="Значение" ${extraAttrs}/>
+            ${datalist}
           </div>
-        `
-      )
+        `;
+      })
       .join("");
   };
 

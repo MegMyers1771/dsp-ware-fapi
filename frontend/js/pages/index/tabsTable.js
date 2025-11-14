@@ -37,13 +37,14 @@ export function createTabsTable(state, { onAttachTag, onEditTab } = {}) {
     }
 
     tabs.forEach((tab) => {
+      const tabUrl = `/static/tab.html?tab_id=${encodeURIComponent(tab.id)}`;
       const tr = document.createElement("tr");
       tr.dataset.tabId = tab.id;
       tr.innerHTML = `
-        <td>${escapeHtml(tab.id)}</td>
+        <td><a class="tab-link" href="${tabUrl}">${escapeHtml(tab.id)}</a></td>
         <td class="tag-fill-cell">${renderTagFillCell(tab.tag_ids, { tagLookup: state.tagStore.getById })}</td>
-        <td>${escapeHtml(tab.name)}</td>
-        <td class="text-center">${escapeHtml(tab.box_count ?? 0)}</td>
+        <td><a class="tab-link" href="${tabUrl}">${escapeHtml(tab.name)}</a></td>
+        <td class="text-center"><a class="tab-link" href="${tabUrl}">${escapeHtml(tab.box_count ?? 0)}</a></td>
         <td class="text-center">
           <div class="btn-group" role="group">
             <div class="btn-group btn-group-sm">

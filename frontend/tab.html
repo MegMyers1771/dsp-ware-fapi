@@ -21,8 +21,13 @@
     transition: transform 0.2s ease, margin 0.2s ease;
   }
 
-  #boxViewModalDialog.shifted {
+  #boxViewModalDialog.shifted-right {
     transform: translate(45%, 30%);
+    margin: 0;
+  }
+
+  #boxViewModalDialog.shifted-left {
+    transform: translate(12%, 30%);
     margin: 0;
   }
 
@@ -45,6 +50,63 @@
   .draggable-item-row.dragging {
     opacity: 0.65;
     cursor: grabbing;
+  }
+
+  .box-table-scroll {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    position: relative;
+  }
+
+  .box-table-scroll-top {
+    display: none;
+    overflow-x: auto;
+    overflow-y: hidden;
+    height: 12px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    padding: 2px;
+  }
+
+  .box-table-scroll-active .box-table-scroll-top {
+    display: block;
+  }
+
+  .box-table-scroll-top::-webkit-scrollbar {
+    height: 10px;
+  }
+
+  .box-table-scroll-top::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .box-table-scroll-top::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.35);
+    border-radius: 999px;
+  }
+
+  .box-table-scroll-top {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.4) transparent;
+  }
+
+  .box-table-scroll-spacer {
+    height: 2px;
+    background: transparent;
+  }
+
+  .box-table-scroll-content {
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .box-table-scroll-content::-webkit-scrollbar {
+    display: none;
   }
   </style>
 </head>

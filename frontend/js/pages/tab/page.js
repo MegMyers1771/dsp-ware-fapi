@@ -17,6 +17,7 @@ export async function bootstrapTabPage() {
     boxViewModalDialog: document.getElementById("boxViewModalDialog"),
     addItemOffcanvas: document.getElementById("addItemOffcanvas"),
     addItemForm: document.getElementById("addItemForm"),
+    addItemOpenBoxBtn: document.getElementById("addModalOpenBoxBtn"),
     searchFiltersModal: document.getElementById("searchFiltersModal"),
     searchFiltersForm: document.getElementById("searchFiltersForm"),
     searchFiltersFields: document.getElementById("searchFiltersFields"),
