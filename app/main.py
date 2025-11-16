@@ -1,21 +1,21 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy.orm import Session
 from fastapi.responses import FileResponse, Response
-from typing import List
-from app.routers import items, tabs, boxes, tags, field, statuses, issues, auth, users, parser
-from . import database, models, schemas
+from app.routers import ( items, tabs, 
+                         boxes, tags, 
+                         field, statuses, 
+                         issues, auth, 
+                         users, parser)
+from . import database, models
 from pathlib import Path
 import os
 import json
 
 app = FastAPI(title="DSP-Ware API")
+
 # --- UI (Frontend) ---
 ui_path = Path(__file__).parent.parent / "frontend"
-# 1️⃣ Раздаём /ui/api.js и другие статические файлы
-# app.mount("/frontend", StaticFiles(directory="frontend"), name="frontend")
-
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
 app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
@@ -42,7 +42,6 @@ app.include_router(field.router)
 app.include_router(statuses.router)
 app.include_router(issues.router)
 app.include_router(parser.router)
-
 
 def _build_frontend_config() -> dict:
     return {

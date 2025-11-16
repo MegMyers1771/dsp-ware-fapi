@@ -7,3 +7,8 @@ __pycache__/
 test.db
 test-credentials.json
 alembic/__archive__/*
+docker-test-db/
+appstart_global.sh
+google-sheets-parser/configs/*
+google-sheets-parser/parsed-tabs/*
+sheets_config.json

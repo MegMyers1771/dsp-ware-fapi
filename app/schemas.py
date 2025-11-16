@@ -283,6 +283,21 @@ class ParserConfigDetail(ParserConfigSummary):
     reserved_ranges: Dict[str, str] = Field(default_factory=dict)
 
 
+class ParserEnvInfo(BaseModel):
+    spreadsheet_id: str
+    credentials_path: str
+
+
+class ParserEnvUpdate(BaseModel):
+    spreadsheet_id: Optional[str] = None
+    credentials_path: Optional[str] = None
+
+
+class ParserCredentialsUpload(BaseModel):
+    data: Dict[str, Any]
+    path: Optional[str] = None
+
+
 class ParserImportResult(BaseModel):
     tab_id: int
     fields_created: int

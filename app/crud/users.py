@@ -51,6 +51,11 @@ def update_user(db: Session, user: models.User, payload: schemas.UserUpdate) -> 
     return user
 
 
+def delete_user(db: Session, user: models.User) -> None:
+    db.delete(user)
+    db.commit()
+
+
 def authenticate_user(db: Session, user_name: str, password: str) -> Optional[models.User]:
     user = get_user_by_name(db, user_name.lower())
     if not user:

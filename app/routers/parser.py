@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app import database, schemas
 from app.crud import parser_configs, parser_import
 from app.security import require_edit_access
-from app.services import parser_runner
+from app.services import parser_runner, sheets_config
 
 router = APIRouter(
     prefix="/parser",
@@ -59,3 +59,26 @@ def run_parser_config(config_name: str):
 @router.delete("/configs/{config_name}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_parser_config(config_name: str):
     parser_configs.delete_config(config_name)
+
+
+@router.get("/env", response_model=schemas.ParserEnvInfo)
+def read_parser_env():
+    info = sheets_config.get_settings()
+    return schemas.ParserEnvInfo(**info)
+
+
+@router.put("/env", response_model=schemas.ParserEnvInfo)
+def update_parser_env(payload: schemas.ParserEnvUpdate):
+    updates = {}
+    if payload.spreadsheet_id is not None:
+        updates["SPREADSHEET_ID"] = payload.spreadsheet_id
+    if payload.credentials_path is not None:
+        updates["CREDENTIALS"] = payload.credentials_path
+    info = sheets_config.update_settings(updates)
+    return schemas.ParserEnvInfo(**info)
+
+
+@router.post("/credentials/upload", response_model=schemas.ParserEnvInfo)
+def upload_parser_credentials(payload: schemas.ParserCredentialsUpload):
+    info = sheets_config.save_credentials_file(payload.data, payload.path)
+    return schemas.ParserEnvInfo(**info)

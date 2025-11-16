@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app import models, schemas
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-PARSED_TABS_DIR = PROJECT_ROOT / "google-sheets-parser" / "parsed-tabs"
+PARSED_TABS_DIR = PROJECT_ROOT / "gsheets_parser" / "parsed-tabs"
 
 NAME_FIELDS = ("Имя", "Name", "Товар")
 QTY_FIELDS = ("Кол-во", "Кол-во.", "Количество", "Qty")
@@ -305,9 +305,9 @@ def _is_core_qty_field(field_name: str) -> bool:
 
 def _extract_item_name(item: Dict[str, Any], field_order: List[str]) -> str | None:
     for key in NAME_FIELDS:
-        value = item.get(key)
-        if value and str(value).strip():
-            return str(value).strip()
+        return item.get(key) or ""
+        # if value and str(value).strip():
+        #     return str(value).strip()
 
     for key in field_order:
         value = item.get(key)

@@ -88,9 +88,7 @@ class Box(Base):
     tab_id = Column(Integer, ForeignKey("tabs.id"), nullable=False)
     tag_ids = Column(JSON, nullable=False, default=list)
 
-    # created_at = Column(DateTime, default=datetime.utcnow)
 
-    # Связи
     tab = relationship("Tab", back_populates="boxes")
     items = relationship("Item", back_populates="box", cascade="all, delete")
     
@@ -112,8 +110,6 @@ class Item(Base):
     tab_id = Column(Integer, ForeignKey("tabs.id"), nullable=False)
     box_id = Column(Integer, ForeignKey("boxes.id"), nullable=False)
     tag_ids = Column(JSON, nullable=False, default=list)
-
-    # created_at = Column(DateTime, default=datetime.utcnow)
 
     tab = relationship("Tab")
     box = relationship("Box", back_populates="items")
