@@ -22,6 +22,7 @@ export async function bootstrapTabPage() {
     searchFiltersForm: document.getElementById("searchFiltersForm"),
     searchFiltersFields: document.getElementById("searchFiltersFields"),
     searchFiltersResetBtn: document.getElementById("searchFiltersResetBtn"),
+    searchResultsContainer: document.getElementById("searchResults"),
   });
 
   const tagManager = createTabTagManager(state, {

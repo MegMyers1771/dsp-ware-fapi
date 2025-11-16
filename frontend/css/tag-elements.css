@@ -35,7 +35,8 @@
 .tag-fill-strip {
   flex: 1 1 0;
   min-height: 2.25rem;
-  cursor: help;
+  transition: opacity 0.3s ease; 
+
 }
 
 .tag-fill-empty {

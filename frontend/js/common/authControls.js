@@ -5,6 +5,7 @@ import {
   listUsers,
   createUser,
   updateUser,
+  deleteUser,
 } from "../api.js";
 import { getAuthToken, setAuthToken, clearAuthToken } from "./authStore.js";
 
@@ -197,7 +198,12 @@ async function loadUsersIntoModal() {
                       </div>
                     </td>
                     <td class="text-end">
-                      <button class="btn btn-sm btn-primary save-user-btn">Сохранить</button>
+                      <div class="btn-group" role="group">
+                        <button class="btn btn-sm btn-primary save-user-btn">Сохранить</button>
+                        <button class="btn btn-sm btn-outline-danger delete-user-btn" ${
+                          user.id === currentUser?.id ? "disabled" : ""
+                        }>Удалить</button>
+                      </div>
                     </td>
                   </tr>
                 `;
@@ -222,6 +228,24 @@ async function loadUsersIntoModal() {
         } catch (err) {
           console.error("Update user error", err);
           showTopAlert(err?.message || "Не удалось обновить пользователя", "danger");
+        }
+      });
+    });
+
+    container.querySelectorAll(".delete-user-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        if (btn.disabled) return;
+        const row = btn.closest("tr");
+        const userId = Number(row?.dataset.userId);
+        if (!userId) return;
+        if (!confirm("Удалить пользователя? Действие необратимо.")) return;
+        try {
+          await deleteUser(userId);
+          showTopAlert("Пользователь удалён", "success");
+          await loadUsersIntoModal();
+        } catch (err) {
+          console.error("Delete user error", err);
+          showTopAlert(err?.message || "Не удалось удалить пользователя", "danger");
         }
       });
     });

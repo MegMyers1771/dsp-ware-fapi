@@ -9,6 +9,7 @@ export function createTabState(tabId) {
     latestTabsSnapshot: [],
     currentBoxViewBoxId: null,
     currentTabEnablePos: true,
+    currentTabFields: [],
     itemFormMode: getDefaultItemFormMode(),
     searchFilters: {},
     lastSearchQuery: "",
@@ -21,11 +22,15 @@ export function createTabState(tabId) {
     ui: {
       boxViewModalEl: null,
       boxViewModalDialogEl: null,
+      boxViewModalExpanded: false,
+      boxViewResizeInitialized: false,
       boxModalShiftSources: new Map(),
       addItemOffcanvasEl: null,
       addItemOffcanvasInstance: null,
+      addItemFormRefs: null,
       issueOffcanvasEl: null,
       issueOffcanvasInstance: null,
+      issueRefs: null,
       issueFormEl: null,
       issueFormController: null,
       tagPillsContainer: null,
@@ -52,6 +57,7 @@ export function createTabState(tabId) {
       deleteTagNameEl: null,
       deleteTagBindingsEl: null,
       deleteTagConfirmBtn: null,
+      searchResultsEl: null,
     },
   };
 }

@@ -18,7 +18,7 @@
       <div class="collapse navbar-collapse" id="parserNav">
         <ul class="navbar-nav me-auto mb-2 mb-lg-0">
           <li class="nav-item">
-            <a class="btn btn-outline-light" href="/">Назад к вкладкам</a>
+            <a class="nav-link" href="/">Назад к вкладкам</a>
           </li>
         </ul>
         <div class="d-flex align-items-center gap-2 flex-wrap ms-auto">
@@ -49,11 +49,7 @@
       <div class="card-body">
         <form id="parserConfigForm" class="row g-3">
           <div class="col-md-6">
-            <label class="form-label">Spreadsheet ID</label>
-            <input type="text" class="form-control" id="parserSpreadsheetId" placeholder="1BUoLe_..." required>
-          </div>
-          <div class="col-md-6">
-            <label class="form-label">Worksheet name</label>
+            <label class="form-label">Название вкладки Google Sheets</label>
             <input type="text" class="form-control" id="parserWorksheetName" placeholder="HDD" required>
           </div>
           <div class="col-md-6">
@@ -61,71 +57,117 @@
             <input type="text" class="form-control" id="parserBoxColumn" placeholder="Ящик" required>
           </div>
           <div class="col-md-6">
-            <label class="form-label">Credentials</label>
-            <input type="text" class="form-control" value="test-credentials.json (используется автоматически)" disabled>
+            <label class="form-label">ID таблицы Google Sheets</label>
+            <div class="input-group">
+              <input type="text" class="form-control" id="parserSpreadsheetId" placeholder="1BUoLe..." />
+              <button type="button" class="btn btn-outline-secondary" id="saveSpreadsheetIdBtn">Сохранить</button>
+            </div>
+            <div class="form-text">Включить POS</div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Credentials JSON</label>
+            <div class="input-group">
+              <input type="text" class="form-control" id="parserCredentialsPath" placeholder="test-credentials.json" />
+              <button type="button" class="btn btn-outline-secondary" id="saveCredentialsPathBtn">Сохранить</button>
+              <button type="button" class="btn btn-outline-secondary" id="uploadCredentialsBtn">Импорт JSON</button>
+            </div>
+            <div class="form-text">Путь из sheets_config.json (CREDENTIALS) или загрузите новый JSON</div>
           </div>
           <div class="col-12">
-            <label class="form-label">Поля (JSON, обязательные: &laquo;Имя&raquo;, &laquo;Кол-во&raquo;)</label>
-            <textarea id="parserFieldsJson" class="form-control font-monospace" rows="4" placeholder='{ "Имя": "Товар", "Кол-во": "Шт" }' required></textarea>
-            <div class="form-text">Формат: {"поле_в_приложении": "колонка_листа"}</div>
+            <label class="form-label">Поля (обязательные: «Имя», «Кол-во»)</label>
+            <div id="fieldsList"></div>
+            <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="addFieldBtn">Добавить поле</button>
+            <div class="form-text">Каждый ключ — поле приложения, значение — колонка листа</div>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Диапазоны с allowed values (опционально)</label>
+            <div class="d-flex align-items-center gap-2">
+              <span id="allowedRangesSummary" class="text-muted small">Нет диапазонов</span>
+              <button type="button" class="btn btn-sm btn-outline-secondary" id="openAllowedValuesModal">
+                Заполнить значения
+              </button>
+            </div>
+            <div class="form-text">
+              Эти диапазоны используются для сбора возможных значений из validation rules
+            </div>
           </div>
           <div class="col-md-6">
             <label class="form-label d-block">Включить POS</label>
             <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" id="parserEnablePos" checked>
+              <input class="form-check-input" type="checkbox" id="parserEnablePos" unchecked>
               <label class="form-check-label" for="parserEnablePos">Использовать позиционирование (POS) для ящиков</label>
             </div>
           </div>
-          <div class="col-12">
-            <label class="form-label">Диапазоны с allowed values (JSON, опционально)</label>
-            <textarea id="parserReservedJson" class="form-control font-monospace" rows="3" placeholder='{ "Вендор": "G6:G8" }'></textarea>
-            <div class="form-text">Формат: {"поле_в_приложении": "A1:A10"}</div>
-          </div>
           <div class="col-12 d-flex justify-content-end gap-2">
             <button type="reset" class="btn btn-outline-secondary">Очистить</button>
-            <button type="submit" class="btn btn-primary" id="parserSubmitBtn">Запустить парсер</button>
+            <button type="submit" class="btn btn-primary" id="parserConfigSaveBtn">Сохранить конфиг</button>
           </div>
           <div class="col-12">
             <div id="parserFormStatus" class="small"></div>
           </div>
         </form>
+        <input type="file" id="configFileInput" class="d-none" accept="application/json" />
+        <input type="file" id="credentialsFileInput" class="d-none" accept="application/json" />
       </div>
     </div>
 
-    <div id="parserEmptyState" class="alert alert-secondary">Загрузка...</div>
+    <div id="parserEmptyState" class="alert alert-secondary">Сохраните хотя бы один конфиг</div>
 
     <div class="table-responsive">
-      <table class="table table-hover align-middle" id="parsedTabsTable">
+      <table class="table table-hover align-middle" id="configsTabsTable">
         <thead class="table-dark">
           <tr>
             <th>Название</th>
-            <th style="width:120px" class="text-center">Полей</th>
-            <th style="width:120px" class="text-center">Ящиков</th>
-            <th style="width:140px" class="text-center">Айтемов</th>
-            <th style="width:140px" class="text-center">Allowed</th>
-            <th style="width:200px" class="text-center">Действия</th>
+            <th style="width:120px" class="text-center">Поля</th>
+            <th style="width:140px" class="text-center">Диапазоны</th>
+            <th style="width:180px" class="text-center">Парсинг</th>
+            <th style="width:240px" class="text-center">Действия</th>
           </tr>
         </thead>
-        <tbody id="parsedTabsBody"></tbody>
+        <tbody id="configsTabsBody"></tbody>
       </table>
     </div>
-  </div>
 
-  <!-- Preview Modal -->
-  <div class="modal fade" id="parsedTabPreviewModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">Предпросмотр вкладки</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-          <div id="parsedTabPreviewContent">
-            <div class="text-muted">Загрузка...</div>
+    <!-- Config preview Modal -->
+    <div class="modal fade" id="configPreviewModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Детали конфига</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div id="configPreviewContent">
+              <div class="text-muted">Загрузка...</div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
           </div>
         </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+      </div>
+    </div>
+
+    <!-- Allowed values Modal -->
+    <div class="modal fade" id="allowedValuesModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+          <form id="allowedValuesForm">
+            <div class="modal-header">
+              <h5 class="modal-title">Диапазоны с allowed values</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <div id="allowedValuesList" class="row g-2"></div>
+              <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="addAllowedValueBtn">
+                Добавить диапазон
+              </button>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+              <button type="submit" class="btn btn-primary">Сохранить</button>
+            </div>
+          </form>
         </div>
       </div>
     </div>

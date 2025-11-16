@@ -46,11 +46,11 @@ export function createTabsTable(state, { onAttachTag, onEditTab } = {}) {
         <td><a class="tab-link" href="${tabUrl}">${escapeHtml(tab.name)}</a></td>
         <td class="text-center"><a class="tab-link" href="${tabUrl}">${escapeHtml(tab.box_count ?? 0)}</a></td>
         <td class="text-center">
-          <div class="btn-group" role="group">
+          <div class="btn-group tab-actions-container" role="group">
             <div class="btn-group btn-group-sm">
               <button class="btn btn-sm btn-outline-secondary tab-actions-dropdown" type="button" data-bs-toggle="dropdown" aria-expanded="false">•••</button>
               <ul class="dropdown-menu dropdown-menu-end">
-                <li><button class="dropdown-item attach-tag-btn" type="button">Привязать тэг</button></li>
+                <li><button class="dropdown-item attach-tag-btn" type="buttbox-actions-dropdownon">Привязать тэг</button></li>
                 <li><button class="dropdown-item edit-tab-btn" type="button">Редактировать</button></li>
                 <li><hr class="dropdown-divider"></li>
                 <li><button class="dropdown-item text-danger delete-tab-btn" type="button">Удалить</button></li>
@@ -60,9 +60,7 @@ export function createTabsTable(state, { onAttachTag, onEditTab } = {}) {
         </td>
       `;
 
-      tr.querySelector(".tab-actions-dropdown")?.addEventListener("click", (event) => {
-        event.stopPropagation();
-      });
+      tr.querySelector(".tab-actions-dropdown")?.addEventListener("click", (event) => event.stopPropagation());
 
       tr.querySelector(".attach-tag-btn")?.addEventListener("click", (event) => {
         event.stopPropagation();
@@ -81,7 +79,10 @@ export function createTabsTable(state, { onAttachTag, onEditTab } = {}) {
         await renderTabs();
       });
 
-      tr.addEventListener("click", () => {
+      tr.addEventListener("click", (event) => {
+        if (event.target.closest(".tab-actions-container") || event.target.closest(".dropdown-menu")) {
+          return;
+        }
         window.location.href = `/static/tab.html?tab_id=${tab.id}`;
       });
 

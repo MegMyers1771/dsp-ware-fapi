@@ -281,6 +281,100 @@ export async function runParserJob(payload) {
   return await res.json();
 }
 
+export async function listParserConfigs() {
+  const res = await authFetch(`${API_URL}/parser/configs`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Не удалось загрузить конфиги");
+  }
+  return await res.json();
+}
+
+export async function getParserConfig(configName) {
+  const res = await authFetch(`${API_URL}/parser/configs/${encodeURIComponent(configName)}`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Не удалось получить конфиг");
+  }
+  return await res.json();
+}
+
+export async function createParserConfig(configData) {
+  const res = await authFetch(`${API_URL}/parser/configs`, {
+    method: "POST",
+    body: JSON.stringify(configData),
+  });
+  if (res.status === 400) {
+    let payload;
+    try {
+      payload = await res.json();
+    } catch {
+      payload = null;
+    }
+    const message = payload?.detail || "Не удалось сохранить конфиг";
+    throw new Error(message);
+  }
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Не удалось сохранить конфиг");
+  }
+  return await res.json();
+}
+
+export async function runParserConfig(configName) {
+  const res = await authFetch(`${API_URL}/parser/configs/${encodeURIComponent(configName)}/run`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Не удалось запустить парсер");
+  }
+  return await res.json();
+}
+
+export async function deleteParserConfig(configName) {
+  const res = await authFetch(`${API_URL}/parser/configs/${encodeURIComponent(configName)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Не удалось удалить конфиг");
+  }
+}
+
+export async function fetchParserEnv() {
+  const res = await authFetch(`${API_URL}/parser/env`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Не удалось загрузить настройки парсера");
+  }
+  return await res.json();
+}
+
+export async function updateParserEnv(payload) {
+  const res = await authFetch(`${API_URL}/parser/env`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Не удалось обновить настройки парсера");
+  }
+  return await res.json();
+}
+
+export async function uploadParserCredentials(payload) {
+  const res = await authFetch(`${API_URL}/parser/credentials/upload`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Не удалось загрузить credentials");
+  }
+  return await res.json();
+}
+
 // ---- Tags ----
 export async function createTag(tagData) {
   const res = await authFetch(`${API_URL}/tags`, {
@@ -451,4 +545,13 @@ export async function updateUser(userId, payload) {
     throw new Error(text || "Не удалось обновить пользователя");
   }
   return await res.json();
+}
+
+export async function deleteUser(userId) {
+  const res = await authFetch(`${API_URL}/users/${userId}`, { method: "DELETE" });
+  if (!res.ok && res.status !== 204) {
+    const text = await res.text();
+    throw new Error(text || "Не удалось удалить пользователя");
+  }
+  return res;
 }

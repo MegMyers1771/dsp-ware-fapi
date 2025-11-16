@@ -205,24 +205,10 @@ async function handleAttachBoxTagSubmit(event, state, boxesController) {
 }
 
 async function renderAttachBoxTagChips(state, boxesController) {
-  const container = state.ui.attachBox.chipsEl;
-  if (!container) return;
   const ids = Array.isArray(state.contexts.attachBox?.tag_ids) ? state.contexts.attachBox.tag_ids : [];
-  container.innerHTML = buildAttachedTagChips(ids, { tagLookup: state.tagStore.getById });
-
-  container.querySelectorAll("[data-remove-tag-id]").forEach((btn) => {
-    btn.addEventListener("click", async (event) => {
-      event.preventDefault();
-      const tagId = Number(btn.dataset.removeTagId);
-      if (!tagId) return;
-      btn.disabled = true;
-      try {
-        await detachTagFromBox(state, boxesController, tagId);
-      } finally {
-        btn.disabled = false;
-      }
-    });
-  });
+  renderTagChips(state.ui.attachBox.chipsEl, ids, state.tagStore.getById, (tagId) =>
+    detachTagFromBox(state, boxesController, tagId)
+  );
 }
 
 async function detachTagFromBox(state, boxesController, tagId) {
@@ -342,24 +328,10 @@ async function handleAttachItemTagSubmit(event, state, boxesController) {
 }
 
 function renderAttachItemTagChips(state, boxesController) {
-  const container = state.ui.attachItem.chipsEl;
-  if (!container) return;
   const ids = Array.isArray(state.contexts.attachItem?.tag_ids) ? state.contexts.attachItem.tag_ids : [];
-  container.innerHTML = buildAttachedTagChips(ids, { tagLookup: state.tagStore.getById });
-
-  container.querySelectorAll("[data-remove-tag-id]").forEach((btn) => {
-    btn.addEventListener("click", async (event) => {
-      event.preventDefault();
-      const tagId = Number(btn.dataset.removeTagId);
-      if (!tagId) return;
-      btn.disabled = true;
-      try {
-        await detachTagFromItem(state, boxesController, tagId);
-      } finally {
-        btn.disabled = false;
-      }
-    });
-  });
+  renderTagChips(state.ui.attachItem.chipsEl, ids, state.tagStore.getById, (tagId) =>
+    detachTagFromItem(state, boxesController, tagId)
+  );
 }
 
 async function detachTagFromItem(state, boxesController, tagId) {
@@ -438,4 +410,22 @@ async function handleDeleteTagConfirm(state, boxesController) {
     state.pendingDeleteTagId = null;
     state.ui.deleteTagConfirmBtn?.removeAttribute("disabled");
   }
+}
+
+function renderTagChips(container, ids, lookupFn, removeHandler) {
+  if (!container) return;
+  container.innerHTML = buildAttachedTagChips(ids, { tagLookup: lookupFn });
+  container.querySelectorAll("[data-remove-tag-id]").forEach((btn) => {
+    btn.addEventListener("click", async (event) => {
+      event.preventDefault();
+      const tagId = Number(btn.dataset.removeTagId);
+      if (!tagId) return;
+      btn.disabled = true;
+      try {
+        await removeHandler(tagId);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
 }

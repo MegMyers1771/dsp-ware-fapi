@@ -1,338 +1,519 @@
-import {
-  fetchParsedTabSummaries,
-  fetchParsedTabDetail,
-  importParsedTab,
-  runParserJob,
-} from "../../api.js";
 import { showTopAlert } from "../../common/alerts.js";
 import { escapeHtml } from "../../common/dom.js";
+import {
+  importParsedTab,
+  createParserConfig,
+  listParserConfigs,
+  getParserConfig,
+  deleteParserConfig,
+  runParserConfig,
+  fetchParserEnv,
+  updateParserEnv,
+  uploadParserCredentials,
+} from "../../api.js";
 
-export function bootstrapParserPage() {
+const EXAMPLE_FIELDS = {
+  Имя: "Товар",
+  "Кол-во": "Шт",
+  Формат: "Фор.",
+  Вендор: "Вендор",
+};
+
+const EXAMPLE_ALLOWED_RANGES = {
+  Форм: "D6:D7",
+  Инт: "E6:E7",
+  Объем: "F6:F7",
+  Вендор: "G6:G7",
+  RPM: "H6:H7",
+  КЕШ: "I6:I7",
+};
+
+export async function bootstrapParserPage() {
   const state = {
-    tabs: [],
-    detailsCache: new Map(),
+    configs: [],
     loading: false,
+    allowedRanges: [],
+    envInfo: null,
   };
+
+  const form = document.getElementById("parserConfigForm");
+  const configsBody = document.getElementById("configsTabsBody");
+  const allowedModalEl = document.getElementById("allowedValuesModal");
+  const allowedModal = allowedModalEl ? new bootstrap.Modal(allowedModalEl) : null;
+  const allowedValuesList = document.getElementById("allowedValuesList");
 
   document.getElementById("parserGoHomeBtn")?.addEventListener("click", () => {
     window.location.href = "/";
   });
-  document.getElementById("parserRefreshBtn")?.addEventListener("click", () => {
-    loadParsedTabs(state);
-  });
+  document.getElementById("parserRefreshBtn")?.addEventListener("click", () => loadConfigs(state));
   document.getElementById("parserFillExampleBtn")?.addEventListener("click", () => {
-    fillExampleConfig();
+    fillExampleConfig(state);
   });
-
-  const tableBody = document.getElementById("parsedTabsBody");
-  tableBody?.addEventListener("click", (event) => {
-    const row = event.target.closest("tr[data-tab-name]");
-    if (!row) return;
-    const tabName = row.dataset.tabName;
-    if (!tabName) return;
-
-    if (event.target.closest("button[data-action='preview']")) {
-      openPreview(tabName, state);
-    } else if (event.target.closest("button[data-action='import']")) {
-      handleImport(tabName, event.target.closest("button[data-action='import']"), state);
-    }
+  document.getElementById("addFieldBtn")?.addEventListener("click", () => addFieldRow());
+  document.getElementById("openAllowedValuesModal")?.addEventListener("click", () => {
+    openAllowedModal(state, allowedModal, allowedValuesList);
   });
-
-  document.getElementById("parserConfigForm")?.addEventListener("submit", (event) =>
-    handleParserSubmit(event, state)
+  document.getElementById("addAllowedValueBtn")?.addEventListener("click", () => {
+    addAllowedValueRow(allowedValuesList);
+  });
+  document.getElementById("allowedValuesForm")?.addEventListener("submit", (event) =>
+    handleAllowedFormSubmit(event, state, allowedModal, allowedValuesList)
   );
 
-  loadParsedTabs(state);
+  form?.addEventListener("submit", (event) => handleConfigFormSubmit(event, state));
+  form?.addEventListener("reset", () => {
+    setTimeout(() => {
+      resetFieldRows();
+      state.allowedRanges = [];
+      renderAllowedSummary(state);
+    }, 0);
+  });
+
+  configsBody?.addEventListener("click", (event) => handleConfigAction(event, state));
+
+  resetFieldRows();
+  renderAllowedSummary(state);
+  setupEnvInputs(state);
+  setupCredentialsUpload(state);
+  setupConfigImport(state);
+  await loadParserEnv(state);
+  loadConfigs(state);
 }
 
-async function loadParsedTabs(state) {
+async function loadConfigs(state) {
   if (state.loading) return;
   state.loading = true;
   setEmptyState("Загрузка...");
   try {
-    state.tabs = await fetchParsedTabSummaries();
-    renderParsedTabs(state.tabs);
+    const configs = await listParserConfigs();
+    state.configs = configs;
+    renderConfigs(configs);
   } catch (err) {
-    console.error("Не удалось загрузить список файлов", err);
-    setEmptyState(err?.message || "Не удалось загрузить список файлов");
-    showTopAlert(err?.message || "Ошибка загрузки списка", "danger");
+    console.error("Не удалось загрузить конфиги", err);
+    setEmptyState(err?.message || "Не удалось загрузить конфиги");
+    showTopAlert(err?.message || "Ошибка загрузки конфигов", "danger");
   } finally {
     state.loading = false;
   }
 }
 
-function renderParsedTabs(tabs) {
-  const body = document.getElementById("parsedTabsBody");
+function renderConfigs(configs) {
+  const body = document.getElementById("configsTabsBody");
   if (!body) return;
-
-  if (!tabs.length) {
+  if (!configs.length) {
     body.innerHTML = "";
-    setEmptyState("Файлы не найдены. Сначала запусти парсер.");
+    setEmptyState("Конфигов не найдено. Создайте новый.");
     return;
   }
-
   setEmptyState("");
-  body.innerHTML = tabs
-    .map(
-      (tab) => `
-        <tr data-tab-name="${escapeHtml(tab.name)}">
+  body.innerHTML = configs
+    .map((config) => {
+      const parseStatus = config.parsed
+        ? `
+            <div class="small text-success">Ящиков: ${config.parsed_boxes_count || 0}</div>
+            <div class="small text-success">Айтемов: ${config.parsed_items_count || 0}</div>
+            <div class="small">${config.parsed_has_allowed_values ? "Allowed: ✅" : "Allowed: —"}</div>
+          `
+        : `<div class="text-muted small">Парсинг не выполнен</div>`;
+      return `
+        <tr data-config-name="${escapeHtml(config.name)}">
           <td>
-            <div class="fw-semibold">${escapeHtml(tab.name)}</div>
+            <div class="fw-semibold">${escapeHtml(config.worksheet_name)}</div>
+            <div class="text-muted small">id: ${escapeHtml(config.name)}</div>
+            <div class="text-muted small">POS: ${config.enable_pos ? "вкл" : "выкл"}</div>
           </td>
-          <td class="text-center">${tab.fields_count}</td>
-          <td class="text-center">${tab.boxes_count}</td>
-          <td class="text-center">${tab.items_count}</td>
-          <td class="text-center">${tab.has_allowed_values ? "✅" : "—"}</td>
+          <td class="text-center">${config.fields_count}</td>
+          <td class="text-center">${config.reserved_ranges_count}</td>
+          <td class="text-center">${parseStatus}</td>
           <td class="text-center">
             <div class="btn-group btn-group-sm">
               <button type="button" class="btn btn-outline-primary" data-action="preview">Просмотр</button>
-              <button type="button" class="btn btn-success" data-action="import">Импортировать</button>
+              <button type="button" class="btn btn-outline-info" data-action="parse">Парсинг</button>
+              <button type="button" class="btn btn-success" data-action="import" ${
+                config.parsed ? "" : "disabled"
+              }>Импортировать</button>
+              <button type="button" class="btn btn-outline-danger" data-action="delete">Удалить</button>
             </div>
           </td>
-        </tr>`
-    )
+        </tr>`;
+    })
     .join("");
 }
 
 function setEmptyState(message) {
-  const container = document.getElementById("parserEmptyState");
-  if (!container) return;
+  const element = document.getElementById("parserEmptyState");
+  if (!element) return;
   if (!message) {
-    container.classList.add("d-none");
+    element.classList.add("d-none");
     return;
   }
-  container.textContent = message;
-  container.classList.remove("d-none");
+  element.textContent = message;
+  element.classList.remove("d-none");
 }
 
-async function openPreview(tabName, state) {
-  const contentEl = document.getElementById("parsedTabPreviewContent");
+function handleConfigAction(event, state) {
+  const row = event.target.closest("tr[data-config-name]");
+  if (!row) return;
+  const actionBtn = event.target.closest("[data-action]");
+  if (!actionBtn) return;
+  const name = row.dataset.configName;
+  if (!name) return;
+
+  switch (actionBtn.dataset.action) {
+    case "preview":
+      openConfigPreview(name);
+      break;
+    case "parse":
+      runConfigNow(name, actionBtn, state);
+      break;
+    case "import":
+      handleImport(name, actionBtn);
+      break;
+    case "delete":
+      deleteConfig(name, state);
+      break;
+    default:
+  }
+}
+
+async function openConfigPreview(configName) {
+  const contentEl = document.getElementById("configPreviewContent");
   if (contentEl) {
     contentEl.innerHTML = `<div class="text-muted">Загрузка...</div>`;
   }
   try {
-    let detail = state.detailsCache.get(tabName);
-    if (!detail) {
-      detail = await fetchParsedTabDetail(tabName);
-      state.detailsCache.set(tabName, detail);
+    const config = await getParserConfig(configName);
+    if (contentEl) {
+      const fieldsListHtml = Object.entries(config.fields || {})
+        .map(
+          ([field, column]) => `<div><strong>${escapeHtml(field)}</strong> → ${escapeHtml(column)}</div>`
+        )
+        .join("");
+      const reservedListHtml = Object.entries(config.reserved_ranges || {})
+        .map(
+          ([field, range]) => `<div><strong>${escapeHtml(field)}</strong> → ${escapeHtml(range)}</div>`
+        )
+        .join("");
+
+      contentEl.innerHTML = `
+        <div class="mb-3">
+          <div class="fw-semibold">${escapeHtml(config.worksheet_name)}</div>
+          <div class="text-muted small">Box column: ${escapeHtml(config.box_column)}</div>
+          <div class="text-muted small">POS: ${config.enable_pos ? "вкл" : "выкл"}</div>
+        </div>
+        <div class="mb-3">
+          <h6>Поля</h6>
+          ${fieldsListHtml || "<div class='text-muted'>Поля не заданы</div>"}
+        </div>
+        <div>
+          <h6>Allowed ranges</h6>
+          ${reservedListHtml || "<div class='text-muted'>Диапазоны не заданы</div>"}
+        </div>
+      `;
     }
-    renderPreview(detail);
-    const modalEl = document.getElementById("parsedTabPreviewModal");
+    const modalEl = document.getElementById("configPreviewModal");
     if (modalEl) {
       bootstrap.Modal.getOrCreateInstance(modalEl).show();
     }
   } catch (err) {
-    console.error("Не удалось получить файл", err);
-    showTopAlert(err?.message || "Не удалось загрузить файл", "danger");
+    console.error("Не удалось загрузить конфиг", err);
+    showTopAlert(err?.message || "Не удалось загрузить конфиг", "danger");
   }
 }
 
-function renderPreview(detail) {
-  const contentEl = document.getElementById("parsedTabPreviewContent");
-  if (!contentEl) return;
-
-  const allowedEntries = Object.entries(detail.allowed_values || {});
-  const posStatus = detail.enable_pos ? "включён" : "выключен";
-  const allowedHtml = allowedEntries.length
-    ? `<div class="table-responsive">
-        <table class="table table-sm">
-          <thead>
-            <tr>
-              <th style="width:200px">Поле</th>
-              <th>Разрешённые значения</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${allowedEntries
-              .map(
-                ([field, values]) => `
-                  <tr>
-                    <td>${escapeHtml(field)}</td>
-                    <td>
-                      ${(values || [])
-                        .slice(0, 10)
-                        .map((val) => `<span class="badge text-bg-light me-1 mb-1">${escapeHtml(String(val))}</span>`)
-                        .join("") || "<span class='text-muted'>—</span>"}
-                    </td>
-                  </tr>`
-              )
-              .join("")}
-          </tbody>
-        </table>
-      </div>`
-    : `<div class="text-muted">Нет ограничений по значениям</div>`;
-
-  const boxes = detail.boxes || [];
-  const boxesHtml = boxes.length
-    ? `<div class="table-responsive">
-        <table class="table table-sm">
-          <thead>
-            <tr>
-              <th>Ящик</th>
-              <th style="width:120px" class="text-center">Айтемов</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${boxes
-              .map(
-                (box) => `
-                  <tr>
-                    <td>${escapeHtml(box.name || "—")}</td>
-                    <td class="text-center">${box.items?.length || 0}</td>
-                  </tr>`
-              )
-              .join("")}
-          </tbody>
-        </table>
-      </div>`
-    : `<div class="text-muted">Нет ящиков</div>`;
-
-  const sampleBox = boxes.find((box) => (box.items || []).length) || boxes[0];
-  const sampleItems = sampleBox?.items?.slice(0, 5) || [];
-  const sampleHtml = sampleItems.length
-    ? sampleItems
-        .map((item, idx) => {
-          const rows = Object.entries(item).slice(0, 6);
-          return `
-            <div class="border rounded p-2 mb-2">
-              <div class="fw-semibold mb-2">#${idx + 1}</div>
-              ${rows
-                .map(
-                  ([key, value]) => `
-                    <div class="d-flex justify-content-between small">
-                      <span class="text-muted">${escapeHtml(key)}:</span>
-                      <span class="ms-2">${escapeHtml(String(value ?? ""))}</span>
-                    </div>`
-                )
-                .join("")}
-            </div>`;
-        })
-        .join("")
-    : `<div class="text-muted">Нет данных для предпросмотра айтемов</div>`;
-
-  contentEl.innerHTML = `
-    <div class="mb-3">
-      <h5 class="mb-1">${escapeHtml(detail.name || "Без названия")}</h5>
-      <div class="text-muted small">POS: ${escapeHtml(posStatus)} · Поля (${detail.fields?.length || 0}): ${
-        detail.fields?.map((field) => escapeHtml(field)).join(", ") || "—"
-      }</div>
-    </div>
-    <div class="mb-4">
-      <h6>Разрешённые значения</h6>
-      ${allowedHtml}
-    </div>
-    <div class="mb-4">
-      <h6>Ящики</h6>
-      ${boxesHtml}
-    </div>
-    <div>
-      <h6>Пример айтемов</h6>
-      ${sampleHtml}
-      ${
-        sampleBox && sampleBox.items && sampleBox.items.length > sampleItems.length
-          ? `<div class="text-muted small">Показаны первые ${sampleItems.length} из ${sampleBox.items.length} айтемов ящика «${escapeHtml(
-              sampleBox.name || "—"
-            )}»</div>`
-          : ""
-      }
-    </div>
-  `;
+async function runConfigNow(name, button, state) {
+  if (!button) return;
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "Парсится...";
+  try {
+    const result = await runParserConfig(name);
+    showTopAlert(
+      `Парсинг "${result.worksheet_name}" завершён (боксов: ${result.boxes_count}, айтемов: ${result.items_count})`,
+      "success"
+    );
+    await loadConfigs(state);
+  } catch (err) {
+    console.error("Парсинг не удался", err);
+    showTopAlert(err?.message || "Не удалось запустить парсер", "danger");
+  } finally {
+    button.disabled = false;
+    button.textContent = originalText;
+  }
 }
 
-async function handleImport(tabName, button, state) {
-  if (!window.confirm(`Импортировать вкладку «${tabName}»?`)) {
+async function handleImport(name, button) {
+  if (!button || !window.confirm(`Импортировать данные для конфига «${name}»?`)) {
     return;
   }
-  const originalText = button?.textContent;
-  if (button) {
-    button.disabled = true;
-    button.textContent = "Импорт...";
-  }
+  const originalText = button.textContent;
+  button.disabled = true;
+  button.textContent = "Импорт...";
   try {
-    const result = await importParsedTab(tabName);
+    const result = await importParsedTab(name);
     showTopAlert(
-      `Вкладка «${tabName}» импортирована (${result.boxes_created} боксов, ${result.items_created} айтемов)`,
+      `Импортировано: ${result.boxes_created} боксов, ${result.items_created} айтемов`,
       "success"
     );
   } catch (err) {
     console.error("Импорт не удался", err);
-    showTopAlert(err?.message || "Не удалось импортировать вкладку", "danger");
+    showTopAlert(err?.message || "Не удалось импортировать", "danger");
   } finally {
-    if (button) {
-      button.disabled = false;
-      button.textContent = originalText;
-    }
+    button.disabled = false;
+    button.textContent = originalText;
   }
 }
 
-async function handleParserSubmit(event, state) {
+async function deleteConfig(name, state) {
+  if (!window.confirm(`Удалить конфиг «${name}» и связанные данные?`)) {
+    return;
+  }
+  try {
+    await deleteParserConfig(name);
+    showTopAlert("Конфиг удалён", "success");
+    await loadConfigs(state);
+  } catch (err) {
+    console.error("Удаление не удалось", err);
+    showTopAlert(err?.message || "Не удалось удалить конфиг", "danger");
+  }
+}
+
+async function loadParserEnv(state) {
+  try {
+    const info = await fetchParserEnv();
+    state.envInfo = info;
+    applyEnvInfoToInputs(info);
+  } catch (err) {
+    console.error("Не удалось загрузить sheets_config.json", err);
+    showTopAlert(err?.message || "Не удалось загрузить настройки sheets_config.json", "danger");
+  }
+}
+
+// function applyEnvInfoToInputs(info) {
+//   const spreadsheetInput = document.getElementById("parserSpreadsheetId");
+//   if (spreadsheetInput && info?.spreadsheet_id !== undefined) {
+//     spreadsheetInput.value = info.spreadsheet_id || "";
+//   }
+//   const credentialsInput = document.getElementById("parserCredentialsPath");
+//   if (credentialsInput && info?.credentials_path !== undefined) {
+//     credentialsInput.value = info.credentials_path || "";
+//   }
+// }
+
+// function setupEnvInputs(state) {
+//   const spreadsheetInput = document.getElementById("parserSpreadsheetId");
+//   const spreadsheetSaveBtn = document.getElementById("saveSpreadsheetIdBtn");
+//   spreadsheetSaveBtn?.addEventListener("click", () => {
+//     const value = spreadsheetInput?.value.trim();
+//     persistEnvUpdate(state, { spreadsheet_id: value }, "SPREADSHEET_ID обновлён");
+//   });
+//   spreadsheetInput?.addEventListener("keydown", (event) => {
+//     if (event.key === "Enter") {
+//       event.preventDefault();
+//       spreadsheetSaveBtn?.click();
+//     }
+//   });
+
+//   const credentialsInput = document.getElementById("parserCredentialsPath");
+//   const credentialsSaveBtn = document.getElementById("saveCredentialsPathBtn");
+//   credentialsSaveBtn?.addEventListener("click", () => {
+//     const value = credentialsInput?.value.trim();
+//     persistEnvUpdate(state, { credentials_path: value }, "CREDENTIALS обновлён");
+//   });
+//   credentialsInput?.addEventListener("keydown", (event) => {
+//     if (event.key === "Enter") {
+//       event.preventDefault();
+//       credentialsSaveBtn?.click();
+//     }
+//   });
+// }
+
+async function persistEnvUpdate(state, payload, successMessage) {
+  const updates = {};
+  if ("spreadsheet_id" in payload) {
+    const value = payload.spreadsheet_id || "";
+    if (!value) {
+      showTopAlert("Укажите корректный Spreadsheet ID", "warning");
+      return;
+    }
+    updates.spreadsheet_id = value;
+  }
+  if ("credentials_path" in payload) {
+    const value = payload.credentials_path || "";
+    if (!value) {
+      showTopAlert("Укажите путь к credentials", "warning");
+      return;
+    }
+    updates.credentials_path = value;
+  }
+  try {
+    const info = await updateParserEnv(updates);
+    state.envInfo = info;
+    applyEnvInfoToInputs(info);
+    if (successMessage) {
+      showTopAlert(successMessage, "success");
+    }
+  } catch (err) {
+    console.error("Не удалось обновить sheets_config.json", err);
+    showTopAlert(err?.message || "Не удалось обновить sheets_config.json", "danger");
+  }
+}
+
+function applyEnvInfoToInputs(info) {
+  const spreadsheetInput = document.getElementById("parserSpreadsheetId");
+  if (spreadsheetInput && info?.spreadsheet_id !== undefined) {
+    spreadsheetInput.value = info.spreadsheet_id || "";
+  }
+  const credentialsInput = document.getElementById("parserCredentialsPath");
+  if (credentialsInput && info?.credentials_path !== undefined) {
+    credentialsInput.value = info.credentials_path || "";
+  }
+}
+
+function setupEnvInputs(state) {
+  const spreadsheetInput = document.getElementById("parserSpreadsheetId");
+  const spreadsheetSaveBtn = document.getElementById("saveSpreadsheetIdBtn");
+  spreadsheetSaveBtn?.addEventListener("click", () => {
+    const value = spreadsheetInput?.value.trim();
+    persistEnvUpdate(state, { spreadsheet_id: value }, "SPREADSHEET_ID обновлён");
+  });
+  spreadsheetInput?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      spreadsheetSaveBtn?.click();
+    }
+  });
+
+  const credentialsInput = document.getElementById("parserCredentialsPath");
+  const credentialsSaveBtn = document.getElementById("saveCredentialsPathBtn");
+  credentialsSaveBtn?.addEventListener("click", () => {
+    const value = credentialsInput?.value.trim();
+    persistEnvUpdate(state, { credentials_path: value }, "CREDENTIALS обновлён");
+  });
+  credentialsInput?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      credentialsSaveBtn?.click();
+    }
+  });
+}
+
+// async function persistEnvUpdate(state, payload, successMessage) {
+//   const updates = {};
+//   if ("spreadsheet_id" in payload) {
+//     const value = payload.spreadsheet_id || "";
+//     if (!value) {
+//       showTopAlert("Укажите корректный Spreadsheet ID", "warning");
+//       return;
+//     }
+//     updates.spreadsheet_id = value;
+//   }
+//   if ("credentials_path" in payload) {
+//     const value = payload.credentials_path || "";
+//     if (!value) {
+//       showTopAlert("Укажите путь к credentials", "warning");
+//       return;
+//     }
+//     updates.credentials_path = value;
+//   }
+//   try {
+//     const info = await updateParserEnv(updates);
+//     state.envInfo = info;
+//     applyEnvInfoToInputs(info);
+//     if (successMessage) {
+//       showTopAlert(successMessage, "success");
+//     }
+//   } catch (err) {
+//     console.error("Не удалось обновить sheets_config.json", err);
+//     showTopAlert(err?.message || "Не удалось обновить sheets_config.json", "danger");
+//   }
+// }
+
+function setupCredentialsUpload(state) {
+  setupJsonImportTrigger("uploadCredentialsBtn", "credentialsFileInput", async (jsonData) => {
+    try {
+      const pathValue = document.getElementById("parserCredentialsPath")?.value.trim();
+      const info = await uploadParserCredentials({ data: jsonData, path: pathValue || undefined });
+      state.envInfo = info;
+      applyEnvInfoToInputs(info);
+      showTopAlert("Credentials сохранён", "success");
+    } catch (err) {
+      console.error("Импорт credentials не удался", err);
+      showTopAlert(err?.message || "Не удалось импортировать credentials", "danger");
+    }
+  });
+}
+
+function setupConfigImport(state) {
+  setupJsonImportTrigger("importConfigBtn", "configFileInput", async (jsonData) => {
+    try {
+      applyImportedConfig(jsonData, state);
+      showTopAlert("Конфиг из JSON загружен", "success");
+    } catch (err) {
+      console.error("Импорт конфига не удался", err);
+      showTopAlert(err?.message || "Не удалось импортировать конфиг", "danger");
+    }
+  });
+}
+
+function applyImportedConfig(config, state) {
+  const worksheetInput = document.getElementById("parserWorksheetName");
+  const boxColumnInput = document.getElementById("parserBoxColumn");
+  const enablePosInput = document.getElementById("parserEnablePos");
+  if (worksheetInput) worksheetInput.value = config?.worksheet_name || "";
+  if (boxColumnInput) boxColumnInput.value = config?.box_column || "";
+  if (enablePosInput) enablePosInput.checked = config?.enable_pos !== false;
+
+  if (config?.fields && typeof config.fields === "object") {
+    renderFieldsFromMap(config.fields);
+  }
+  const reservedEntries = Object.entries(config?.reserved_ranges || {}).map(([field, range]) => ({
+    field,
+    range,
+  }));
+  state.allowedRanges = reservedEntries;
+  renderAllowedSummary(state);
+}
+
+async function handleConfigFormSubmit(event, state) {
   event.preventDefault();
   const form = event.currentTarget;
-  const submitBtn = document.getElementById("parserSubmitBtn");
-  const statusEl = document.getElementById("parserFormStatus");
-
-  const spreadsheetId = document.getElementById("parserSpreadsheetId")?.value.trim();
-  const worksheetName = document.getElementById("parserWorksheetName")?.value.trim();
-  const boxColumn = document.getElementById("parserBoxColumn")?.value.trim();
-  const fieldsRaw = document.getElementById("parserFieldsJson")?.value.trim();
-  const reservedRaw = document.getElementById("parserReservedJson")?.value.trim();
-  const enablePosInput = document.getElementById("parserEnablePos");
-  const enablePos = enablePosInput ? enablePosInput.checked : true;
-
-  let fields;
-  let reserved = {};
-  try {
-    fields = parseObject(fieldsRaw, "Поля");
-    reserved = reservedRaw ? parseObject(reservedRaw, "Диапазоны") : {};
-  } catch (err) {
-    showTopAlert(err.message, "warning");
-    setFormStatus(statusEl, err.message, "danger");
-    return;
-  }
-
-  const requiredFields = ["Имя", "Кол-во"];
-  const normalizedFieldNames = Object.keys(fields || {}).map((key) => key.trim().toLowerCase());
-  const missingRequired = requiredFields.filter(
-    (name) => !normalizedFieldNames.includes(name.trim().toLowerCase())
-  );
-  if (missingRequired.length) {
-    const message = `Добавьте обязательные поля: ${missingRequired.join(", ")}`;
+  const worksheetName = (document.getElementById("parserWorksheetName")?.value || "").trim();
+  const boxColumn = (document.getElementById("parserBoxColumn")?.value || "").trim();
+  const enablePos = Boolean(document.getElementById("parserEnablePos")?.checked);
+  const fields = gatherFieldMap();
+  if (!worksheetName || !boxColumn) {
+    const message = "Заполните имя листа и колонку ящиков";
+    setFormStatus(message, "danger");
     showTopAlert(message, "warning");
-    setFormStatus(statusEl, message, "danger");
     return;
   }
-
-  if (!spreadsheetId || !worksheetName || !boxColumn) {
-    const message = "Заполни Spreadsheet ID, Worksheet и колонку ящиков";
+  if (!("Имя" in fields) || !("Кол-во" in fields)) {
+    console.log(fields);
+    const message = "Добавьте обязательные поля Имя и Кол-во";
+    setFormStatus(message, "danger");
     showTopAlert(message, "warning");
-    setFormStatus(statusEl, message, "danger");
     return;
   }
-
+  const payload = {
+    worksheet_name: worksheetName,
+    box_column: boxColumn,
+    fields,
+    reserved_ranges: buildAllowedPayload(state.allowedRanges),
+    enable_pos: enablePos,
+  };
+  const submitBtn = document.getElementById("parserConfigSaveBtn");
   submitBtn.disabled = true;
-  setFormStatus(statusEl, "Парсер запущен...", "info");
+  setFormStatus("Сохраняем конфиг...", "info");
   try {
-    const result = await runParserJob({
-      spreadsheet_id: spreadsheetId,
-      worksheet_name: worksheetName,
-      box_column: boxColumn,
-      fields,
-      reserved_ranges: reserved,
-      enable_pos: enablePos,
-    });
-    setFormStatus(
-      statusEl,
-      `Готово: файл ${result.file_name} (${result.boxes_count} боксов, ${result.items_count} айтемов, POS: ${
-        result.enable_pos ? "вкл" : "выкл"
-      })`,
-      "success"
-    );
-    showTopAlert("Парсинг завершён. Файл добавлен в список.", "success");
-    await loadParsedTabs(state);
+    const created = await createParserConfig(payload);
+    setFormStatus(`Конфиг "${created.worksheet_name}" сохранён`, "success");
+    showTopAlert(`Конфиг "${created.worksheet_name}" добавлен`, "success");
+    await loadConfigs(state);
   } catch (err) {
-    console.error("Парсер упал", err);
-    const message = err?.message || "Не удалось выполнить парсинг";
-    setFormStatus(statusEl, message, "danger");
+    console.error("Сохранение конфига не удалось", err);
+    const message = err?.message || "Не удалось сохранить конфиг";
+    setFormStatus(message, "danger");
     showTopAlert(message, "danger");
   } finally {
     submitBtn.disabled = false;
@@ -340,47 +521,200 @@ async function handleParserSubmit(event, state) {
   }
 }
 
-function parseObject(text, fieldName) {
-  if (!text) throw new Error(`Поле "${fieldName}" не заполнено`);
-  try {
-    const parsed = JSON.parse(text);
-    if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
-      throw new Error("not object");
+function gatherFieldMap() {
+  const fields = {};
+  document.querySelectorAll("#fieldsList .field-row").forEach((row) => {
+    const keyInput = row.querySelector(".field-key");
+    const valueInput = row.querySelector(".field-value");
+    const key =
+      keyInput instanceof HTMLInputElement ? keyInput.value.trim() : "";
+    const value =
+      valueInput instanceof HTMLInputElement ? valueInput.value.trim() : "";
+    if (key && value) {
+      fields[key] = value;
     }
-    return parsed;
-  } catch (err) {
-    throw new Error(`Поле "${fieldName}" должно содержать корректный JSON-объект`);
+  });
+  return fields;
+}
+
+function buildAllowedPayload(allowedRanges) {
+  const payload = {};
+  allowedRanges.forEach(({ field, range }) => {
+    if (field && range) {
+      payload[field] = range;
+    }
+  });
+  return payload;
+}
+
+function setFormStatus(message, type = "info") {
+  const statusEl = document.getElementById("parserFormStatus");
+  if (!statusEl) return;
+  statusEl.textContent = message || "";
+  statusEl.className = `small text-${type} mt-2`;
+}
+
+function resetFieldRows() {
+  clearFieldRows();
+  addFieldRow();
+}
+
+function clearFieldRows() {
+  const container = document.getElementById("fieldsList");
+  if (container) {
+    container.innerHTML = "";
   }
 }
 
-function setFormStatus(el, message, type = "info") {
-  if (!el) return;
-  el.textContent = message || "";
-  el.className = `small text-${type} mt-2`;
+function addFieldRow(key = "", value = "") {
+  const container = document.getElementById("fieldsList");
+  if (!container) return;
+  const row = document.createElement("div");
+  row.className = "d-flex flex-wrap gap-2 align-items-start field-row";
+  const keyWrapper = document.createElement("div");
+  keyWrapper.style.flex = "1 1 180px";
+  const columnWrapper = document.createElement("div");
+  columnWrapper.style.flex = "1 1 180px";
+  const keyInput = document.createElement("input");
+  keyInput.type = "text";
+  keyInput.className = "form-control field-key";
+  keyInput.placeholder = "Поле приложения";
+  keyInput.value = key;
+  const columnInput = document.createElement("input");
+  columnInput.type = "text";
+  columnInput.className = "form-control field-value";
+  columnInput.placeholder = "Колонка листа";
+  columnInput.value = value;
+  keyWrapper.appendChild(keyInput);
+  columnWrapper.appendChild(columnInput);
+  const removeBtn = document.createElement("button");
+  removeBtn.type = "button";
+  removeBtn.className = "btn btn-outline-danger btn-sm";
+  removeBtn.setAttribute("aria-label", "Удалить поле");
+  removeBtn.innerHTML = "&times;";
+  removeBtn.addEventListener("click", () => row.remove());
+  row.appendChild(keyWrapper);
+  row.appendChild(columnWrapper);
+  row.appendChild(removeBtn);
+  container.appendChild(row);
 }
 
-function fillExampleConfig() {
-  document.getElementById("parserSpreadsheetId").value = "1BUoLe_K90Di-FoGsNyQH-sg5DVSjxBFjcdotgMcxsYM";
-  document.getElementById("parserWorksheetName").value = "HDD";
-  document.getElementById("parserBoxColumn").value = "Ящик";
-  const enablePosInput = document.getElementById("parserEnablePos");
-  if (enablePosInput) enablePosInput.checked = true;
-  document.getElementById("parserFieldsJson").value = JSON.stringify(
-    {
-      "Имя": "Товар",
-      "Кол-во": "Шт",
-      "Формат": "Фор.",
-      "Вендор": "Вендор",
-    },
-    null,
-    2
-  );
-  document.getElementById("parserReservedJson").value = JSON.stringify(
-    {
-      "Форм": "D6:D20",
-      "Вендор": "G6:G40",
-    },
-    null,
-    2
-  );
+function fillExampleConfig(state) {
+  const worksheetInput = document.getElementById("parserWorksheetName");
+  const boxInput = document.getElementById("parserBoxColumn");
+  const posInput = document.getElementById("parserEnablePos");
+  if (worksheetInput) worksheetInput.value = "HDD";
+  if (boxInput) boxInput.value = "Ящик";
+  if (posInput) posInput.checked = true;
+  renderFieldsFromMap(EXAMPLE_FIELDS);
+  state.allowedRanges = Object.entries(EXAMPLE_ALLOWED_RANGES).map(([field, range]) => ({ field, range }));
+  renderAllowedSummary(state);
+}
+
+function renderFieldsFromMap(mapping) {
+  clearFieldRows();
+  const entries = Object.entries(mapping || {});
+  if (!entries.length) {
+    addFieldRow();
+    return;
+  }
+  entries.forEach(([key, value]) => addFieldRow(key, value));
+}
+
+function renderAllowedSummary(state) {
+  const summary = document.getElementById("allowedRangesSummary");
+  if (!summary) return;
+  if (!state.allowedRanges.length) {
+    summary.textContent = "Нет диапазонов";
+    return;
+  }
+  summary.textContent = `Диапазонов: ${state.allowedRanges.length}`;
+}
+
+function openAllowedModal(state, modal, listEl) {
+  if (!listEl || !modal) return;
+  renderAllowedModalRows(state, listEl);
+  modal.show();
+}
+
+function renderAllowedModalRows(state, listEl) {
+  listEl.innerHTML = "";
+  if (!state.allowedRanges.length) {
+    const placeholder = document.createElement("div");
+    placeholder.className = "allowed-placeholder text-muted small";
+    placeholder.textContent = "Диапазонов пока нет";
+    listEl.appendChild(placeholder);
+    return;
+  }
+  state.allowedRanges.forEach(({ field, range }) => addAllowedValueRow(listEl, field, range));
+}
+
+function addAllowedValueRow(listEl, field = "", range = "") {
+  if (!listEl) return;
+  const placeholder = listEl.querySelector(".allowed-placeholder");
+  if (placeholder) placeholder.remove();
+  const row = document.createElement("div");
+  row.className = "d-flex flex-wrap gap-2 align-items-start allowed-row mb-2";
+  const fieldInput = document.createElement("input");
+  fieldInput.type = "text";
+  fieldInput.className = "form-control allowed-field";
+  fieldInput.placeholder = "Поле";
+  fieldInput.value = field;
+  fieldInput.style.flex = "1 1 200px";
+  const rangeInput = document.createElement("input");
+  rangeInput.type = "text";
+  rangeInput.className = "form-control allowed-range";
+  rangeInput.placeholder = "Диапазон (например G6:G10)";
+  rangeInput.value = range;
+  rangeInput.style.flex = "1 1 200px";
+  const removeBtn = document.createElement("button");
+  removeBtn.type = "button";
+  removeBtn.className = "btn btn-outline-danger btn-sm";
+  removeBtn.textContent = "Удалить";
+  removeBtn.addEventListener("click", () => row.remove());
+  row.appendChild(fieldInput);
+  row.appendChild(rangeInput);
+  row.appendChild(removeBtn);
+  listEl.appendChild(row);
+}
+
+function handleAllowedFormSubmit(event, state, modal, listEl) {
+  event.preventDefault();
+  if (!listEl) return;
+  const rows = [];
+  listEl.querySelectorAll(".allowed-row").forEach((row) => {
+    const fieldInput = row.querySelector(".allowed-field");
+    const rangeInput = row.querySelector(".allowed-range");
+    const field =
+      fieldInput instanceof HTMLInputElement ? fieldInput.value.trim() : "";
+    const range =
+      rangeInput instanceof HTMLInputElement ? rangeInput.value.trim() : "";
+    if (field && range) {
+      rows.push({ field, range });
+    }
+  });
+  state.allowedRanges = rows;
+  renderAllowedSummary(state);
+  modal?.hide();
+}
+
+function setupJsonImportTrigger(buttonId, inputId, handler) {
+  const button = document.getElementById(buttonId);
+  const input = document.getElementById(inputId);
+  if (!button || !input) return;
+  button.addEventListener("click", () => input.click());
+  input.addEventListener("change", async () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const json = JSON.parse(text);
+      await handler(json);
+    } catch (err) {
+      console.error("Импорт JSON не удался", err);
+      showTopAlert(err?.message || "Не удалось обработать JSON", "danger");
+    } finally {
+      input.value = "";
+    }
+  });
 }

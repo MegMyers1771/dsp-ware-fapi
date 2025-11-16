@@ -256,6 +256,33 @@ class ParsedTabDetail(BaseModel):
     boxes: List[ParsedTabBoxDetail] = Field(default_factory=list)
 
 
+class ParserConfigCreate(BaseModel):
+    worksheet_name: str
+    box_column: str
+    fields: Dict[str, str]
+    reserved_ranges: Dict[str, str] = Field(default_factory=dict)
+    enable_pos: bool = True
+
+
+class ParserConfigSummary(BaseModel):
+    name: str
+    worksheet_name: str
+    box_column: str
+    fields_count: int
+    reserved_ranges_count: int
+    enable_pos: bool
+    parsed: bool
+    parsed_boxes_count: Optional[int] = None
+    parsed_items_count: Optional[int] = None
+    parsed_has_allowed_values: bool = False
+    parsed_file_name: str
+
+
+class ParserConfigDetail(ParserConfigSummary):
+    fields: Dict[str, str] = Field(default_factory=dict)
+    reserved_ranges: Dict[str, str] = Field(default_factory=dict)
+
+
 class ParserImportResult(BaseModel):
     tab_id: int
     fields_created: int

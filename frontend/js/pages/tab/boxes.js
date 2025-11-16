@@ -6,7 +6,6 @@ import {
   getItemsByBox,
   getTabFields,
   reorderItems,
-  searchItems,
   updateItem,
   fetchStatuses,
 } from "../../api.js";
@@ -15,12 +14,31 @@ import { escapeHtml } from "../../common/dom.js";
 import { renderTagFillCell } from "../../common/tagTemplates.js";
 import { getDefaultItemFormMode } from "./state.js";
 import { getCurrentUser } from "../../common/authControls.js";
+import {
+  setupBoxTableScrollSync,
+  toggleBoxModalShift,
+  setupBoxModalResizeToggle,
+} from "./uiHelpers.js";
+import { handleSearch, setupSearchFilters } from "./search.js";
+
+function formatMetadataDisplay(value) {
+  if (value === undefined || value === null) {
+    return "";
+  }
+  const normalized = typeof value === "string" ? value.trim() : String(value);
+  if (!normalized) {
+    return "";
+  }
+  return escapeHtml(normalized);
+}
 
 export function createBoxesController(state, elements) {
   let tagManagerApi = null;
 
   state.ui.boxViewModalEl = elements.boxViewModal ?? null;
   state.ui.boxViewModalDialogEl = elements.boxViewModalDialog ?? null;
+  setupBoxModalResizeToggle(state);
+  state.ui.addItemFormRefs = state.ui.addItemFormRefs || getAddItemFormRefs();
   state.ui.addItemOffcanvasEl = elements.addItemOffcanvas ?? null;
   if (state.ui.addItemOffcanvasEl) {
     state.ui.addItemOffcanvasEl.addEventListener("show.bs.offcanvas", () =>
@@ -56,6 +74,7 @@ export function createBoxesController(state, elements) {
 
   state.ui.issueOffcanvasEl = document.getElementById("issueItemOffcanvas");
   state.ui.issueFormEl = document.getElementById("issueItemForm");
+  state.ui.issueRefs = state.ui.issueRefs || getIssueFormRefs();
   if (state.ui.issueOffcanvasEl) {
     state.ui.issueOffcanvasEl.addEventListener("show.bs.offcanvas", () =>
       toggleBoxModalShift(state, true, "left", "issue")
@@ -77,7 +96,9 @@ export function createBoxesController(state, elements) {
 
   const rerunLastSearch = async () => {
     if (!state.lastSearchQuery) return;
-    await handleSearch(state, tagManagerApi, state.lastSearchQuery, state.searchFilters);
+    await handleSearch(state, state.lastSearchQuery, state.searchFilters, {
+      openBox: (boxId, highlightIds) => openBoxModal(state, tagManagerApi, boxId, highlightIds),
+    });
   };
 
   const filtersController = setupSearchFilters(state, {
@@ -88,6 +109,7 @@ export function createBoxesController(state, elements) {
     onFiltersChanged: rerunLastSearch,
   });
   state.ui.searchFiltersController = filtersController;
+  state.ui.searchResultsEl = elements.searchResultsContainer ?? document.getElementById("searchResults");
 
   return {
     registerTagManager(api) {
@@ -103,7 +125,9 @@ export function createBoxesController(state, elements) {
       await createBoxApi(state.tabId, name, description);
     },
     async handleSearch(query) {
-      return handleSearch(state, tagManagerApi, query, state.searchFilters);
+      return handleSearch(state, query, state.searchFilters, {
+        openBox: (boxId, highlightIds) => openBoxModal(state, tagManagerApi, boxId, highlightIds),
+      });
     },
     async openSearchFilters() {
       await filtersController?.open();
@@ -205,16 +229,30 @@ async function openBoxModal(state, tagManagerApi, boxId, highlightItems = null, 
       tab_id: fallbackTabId ?? state.tabId,
     };
 
+  if (!state.currentTabFields.length) {
+    try {
+      const fields = await getTabFields(targetBox.tab_id);
+      state.currentTabFields = fields;
+    } catch (err) {
+      console.warn("Не удалось загрузить поля вкладки", err);
+      state.currentTabFields = [];
+    }
+  }
+
   if (!items.length) {
     content.innerHTML = `<div class="text-muted">Ящик пуст</div>`;
   } else {
-    const metaKeys = Array.from(new Set(items.flatMap((item) => Object.keys(item.metadata_json || {}))));
+    const fieldNames = (state.currentTabFields || []).map((field) => field.name).filter(Boolean);
+    const metadataKeys = Array.from(new Set(items.flatMap((item) => Object.keys(item.metadata_json || {}))));
+    const metaKeys = Array.from(
+      new Set([...fieldNames, ...metadataKeys.filter((key) => !fieldNames.includes(key))])
+    );
     const headers = [
       state.currentTabEnablePos
-        ? { key: "__pos", label: "POS", style: "width:90px" }
+        ? { key: "__pos", label: "POS", style: "width:50px" }
         : { key: "__seq", label: "№", style: "width:70px" },
-      { key: "__tags", label: "Тэги", style: "width:140px", class: "text-center" },
-      { key: "__name", label: "Название" },
+      { key: "__tags", label: "Тэги", style: "width:75px", class: "text-center" },
+      { key: "__name", label: "Название", style: "width:380px" },
       { key: "__qty", label: "Кол-во", style: "width:110px", class: "text-center" },
       ...metaKeys.map((key) => ({ key, label: key })),
       { key: "__actions", label: "Действия", style: "width:140px", class: "text-center" },
@@ -258,10 +296,18 @@ async function openBoxModal(state, tagManagerApi, boxId, highlightItems = null, 
                     emptyText: "Нет",
                   })}</td>`
                 );
-                cells.push(`<td class="align-middle">${esc(item.name)}</td>`);
+                cells.push(
+                  `<td class="align-middle item-name-cell" data-item-name="${escapeHtml(
+                    item.name
+                  )}" data-item-id="${item.id}">${esc(item.name)}</td>`
+                );
                 const qtyLabel = typeof item.qty === "number" ? item.qty : "—";
                 cells.push(`<td class="align-middle text-center">${esc(qtyLabel)}</td>`);
-                metaKeys.forEach((key) => cells.push(`<td class="align-middle">${esc((item.metadata_json || {})[key])}</td>`));
+                metaKeys.forEach((key) =>
+                  cells.push(
+                    `<td class="align-middle">${formatMetadataDisplay((item.metadata_json || {})[key])}</td>`
+                  )
+                );
                 cells.push(`
                   <td class="text-center align-middle">
                     <div class="btn-group btn-group-sm item-actions-container">
@@ -308,6 +354,30 @@ async function openBoxModal(state, tagManagerApi, boxId, highlightItems = null, 
     content.querySelectorAll(".item-actions-dropdown").forEach((btn) => {
       btn.addEventListener("click", (event) => event.stopPropagation());
     });
+    const nameCells = content.querySelectorAll(".item-name-cell");
+    nameCells.forEach((cell) => {
+      const name = cell.dataset.itemName || "";
+      let pointerMoved = false;
+      cell.addEventListener("mousedown", () => {
+        pointerMoved = false;
+      });
+      cell.addEventListener("mousemove", () => {
+        pointerMoved = true;
+      });
+      cell.addEventListener("mouseup", async (event) => {
+        if (pointerMoved) return;
+        try {
+          await navigator.clipboard.writeText(name);
+          cell.classList.add("text-success");
+          setTimeout(() => cell.classList.remove("text-success"), 350);
+          showTopAlert("Название скопировано", "success", 1200);
+        } catch (err) {
+          console.warn("Clipboard copy failed", err);
+          showTopAlert("Не удалось скопировать название", "warning");
+        }
+      });
+    });
+
     content.querySelectorAll(".item-action-edit").forEach((btn) => {
       btn.addEventListener("click", async (event) => {
         event.stopPropagation();
@@ -354,6 +424,7 @@ async function openBoxModal(state, tagManagerApi, boxId, highlightItems = null, 
   const modalEl = state.ui.boxViewModalEl || document.getElementById("boxViewModal");
   if (!modalEl) return;
   const modal = new bootstrap.Modal(modalEl, { backdrop: false, focus: false });
+  modalEl.addEventListener("shown.bs.modal", () => setupBoxModalResizeToggle(state));
 
   modalEl.addEventListener(
     "hidden.bs.modal",
@@ -467,88 +538,6 @@ function enableItemReorder(state, tagManagerApi, container, boxId) {
   });
 }
 
-function setupBoxTableScrollSync(container) {
-  const wrapper = container.querySelector(".box-table-scroll");
-  const topScroller = wrapper?.querySelector(".box-table-scroll-top");
-  const spacer = wrapper?.querySelector(".box-table-scroll-spacer");
-  const contentScroller = wrapper?.querySelector(".box-table-scroll-content");
-  const table = contentScroller?.querySelector("table");
-  if (!wrapper || !topScroller || !spacer || !contentScroller || !table) return;
-
-  let syncingFromTop = false;
-  let syncingFromContent = false;
-
-  const syncWidths = () => {
-    const needsScroll = table.scrollWidth > contentScroller.clientWidth + 2;
-    wrapper.classList.toggle("box-table-scroll-active", needsScroll);
-    spacer.style.width = `${table.scrollWidth}px`;
-    if (!needsScroll) {
-      topScroller.scrollLeft = 0;
-    }
-  };
-
-  topScroller.addEventListener("scroll", () => {
-    if (syncingFromTop) return;
-    syncingFromContent = true;
-    contentScroller.scrollLeft = topScroller.scrollLeft;
-    syncingFromContent = false;
-  });
-
-  contentScroller.addEventListener("scroll", () => {
-    if (syncingFromContent) return;
-    syncingFromTop = true;
-    topScroller.scrollLeft = contentScroller.scrollLeft;
-    syncingFromTop = false;
-  });
-
-  if (typeof ResizeObserver !== "undefined") {
-    const observer = new ResizeObserver(syncWidths);
-    observer.observe(table);
-    observer.observe(contentScroller);
-    observer.observe(wrapper);
-  } else {
-    window.addEventListener("resize", syncWidths);
-  }
-
-  syncWidths();
-}
-
-function toggleBoxModalShift(state, enable, direction = "right", source = direction ?? "default") {
-  const dialogEl = state.ui.boxViewModalDialogEl || document.getElementById("boxViewModalDialog");
-  const modalEl = state.ui.boxViewModalEl || document.getElementById("boxViewModal");
-  if (!dialogEl || !modalEl) return;
-
-  if (!state.ui.boxModalShiftSources) {
-    state.ui.boxModalShiftSources = new Map();
-  }
-  const shifts = state.ui.boxModalShiftSources;
-
-  if (source == null) {
-    shifts.clear();
-  } else if (enable) {
-    const resolved = direction === "left" ? "left" : "right";
-    shifts.set(source, resolved);
-  } else {
-    shifts.delete(source);
-  }
-
-  const activeDirections = Array.from(shifts.values());
-  const currentDirection = activeDirections[activeDirections.length - 1] || null;
-
-  dialogEl.classList.remove("shifted-left", "shifted-right");
-  if (currentDirection === "left") {
-    dialogEl.classList.add("shifted-left");
-  } else if (currentDirection === "right") {
-    dialogEl.classList.add("shifted-right");
-  }
-
-  if (shifts.size) {
-    modalEl.classList.add("stacked");
-  } else {
-    modalEl.classList.remove("stacked");
-  }
-}
-
 async function issueItem(state, issueFormController, item, box) {
   if (!issueFormController) {
     showTopAlert("Форма выдачи недоступна", "danger");
@@ -561,109 +550,9 @@ async function issueItem(state, issueFormController, item, box) {
   await issueFormController.open(item, box);
 }
 
-function setupSearchFilters(
-  state,
-  {
-    modalEl = document.getElementById("searchFiltersModal"),
-    formEl = document.getElementById("searchFiltersForm"),
-    fieldsContainer = document.getElementById("searchFiltersFields"),
-    resetBtn = document.getElementById("searchFiltersResetBtn"),
-    onFiltersChanged,
-  } = {}
-) {
-  if (!modalEl || !formEl || !fieldsContainer) return null;
-  const modal = new bootstrap.Modal(modalEl);
-  let cachedFields = null;
-
-  const loadFields = async () => {
-    if (cachedFields) return cachedFields;
-    try {
-      cachedFields = await getTabFields(state.tabId);
-    } catch (err) {
-      console.error("Не удалось загрузить поля вкладки", err);
-      showTopAlert(err?.message || "Не удалось загрузить поля вкладки", "danger");
-      cachedFields = [];
-    }
-    return cachedFields;
-  };
-
-  const renderFields = (fields) => {
-    if (!fields.length) {
-      fieldsContainer.innerHTML = `<div class="col-12 text-muted">Для этой вкладки нет полей</div>`;
-      return;
-    }
-    fieldsContainer.innerHTML = fields
-      .map((field, index) => {
-        const safeName = String(field.name || `field-${index}`);
-        const inputId = `search-filter-${index}-${safeName}`.replace(/[^a-zA-Z0-9_-]/g, "");
-        const allowedValues = Array.isArray(field.allowed_values) ? field.allowed_values : null;
-        const datalistId = allowedValues?.length ? `${inputId}-list` : "";
-        const datalist = allowedValues?.length
-          ? `<datalist id="${datalistId}">${allowedValues.map((value) => `<option value="${escapeHtml(value)}"></option>`).join("")}</datalist>`
-          : "";
-        const extraAttrs = datalistId ? `list="${escapeHtml(datalistId)}"` : "";
-        return `
-          <div class="col-12 col-md-6">
-            <label class="form-label" for="${inputId}">${escapeHtml(safeName)}</label>
-            <input type="text" class="form-control" id="${inputId}" data-filter-field="${escapeHtml(safeName)}" placeholder="Значение" ${extraAttrs}/>
-            ${datalist}
-          </div>
-        `;
-      })
-      .join("");
-  };
-
-  const applyStoredValues = () => {
-    const filters = state.searchFilters || {};
-    fieldsContainer.querySelectorAll("[data-filter-field]").forEach((input) => {
-      const key = input.dataset.filterField;
-      input.value = filters?.[key] ?? "";
-    });
-  };
-
-  const collectValues = () => {
-    const payload = {};
-    fieldsContainer.querySelectorAll("[data-filter-field]").forEach((input) => {
-      const name = input.dataset.filterField;
-      const value = input.value.trim();
-      if (value) {
-        payload[name] = value;
-      }
-    });
-    return payload;
-  };
-
-  const open = async () => {
-    const fields = await loadFields();
-    renderFields(fields);
-    applyStoredValues();
-    modal.show();
-  };
-
-  formEl.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    state.searchFilters = collectValues();
-    modal.hide();
-    await onFiltersChanged?.();
-  });
-
-  resetBtn?.addEventListener("click", async () => {
-    state.searchFilters = {};
-    fieldsContainer.querySelectorAll("[data-filter-field]").forEach((input) => {
-      input.value = "";
-    });
-    modal.hide();
-    await onFiltersChanged?.();
-  });
-
-  return {
-    open,
-  };
-}
-
 function setupIssueOffcanvas(state, { onIssued } = {}) {
-  const offcanvasEl = document.getElementById("issueItemOffcanvas");
-  const formEl = document.getElementById("issueItemForm");
+  const offcanvasEl = state.ui.issueOffcanvasEl || document.getElementById("issueItemOffcanvas");
+  const formEl = state.ui.issueFormEl || document.getElementById("issueItemForm");
   if (!offcanvasEl || !formEl) {
     return null;
   }
@@ -671,14 +560,8 @@ function setupIssueOffcanvas(state, { onIssued } = {}) {
   const instance = bootstrap.Offcanvas.getOrCreateInstance(offcanvasEl);
   state.ui.issueOffcanvasInstance = instance;
 
-  const statusSelect = document.getElementById("issueStatusId");
-  const statusHintEl = document.getElementById("issueStatusHint");
-  const responsibleInput = document.getElementById("issueResponsibleUserName");
-  const serialInput = document.getElementById("issueSerialNumber");
-  const invoiceInput = document.getElementById("issueInvoiceNumber");
-  const summaryEl = document.getElementById("issueItemSummary");
-  const metaEl = document.getElementById("issueItemMeta");
-  const submitBtn = document.getElementById("issueSubmitBtn");
+  const refs = ensureIssueFormRefs(state);
+  const { statusSelect, statusHintEl, responsibleInput, serialInput, invoiceInput, summaryEl, metaEl, submitBtn } = refs;
 
   if (responsibleInput) {
     responsibleInput.readOnly = true;
@@ -822,13 +705,15 @@ function buildIssueSummary(state, item, box) {
 }
 
 function buildIssueMetadata(item) {
-  const esc = (value) => escapeHtml(value ?? "—");
   const entries = Object.entries(item?.metadata_json || {});
   if (!entries.length) {
     return '<div class="text-muted">Дополнительные поля отсутствуют</div>';
   }
   return entries
-    .map(([key, value]) => `<div><span class="text-secondary">${esc(key)}:</span> ${esc(value)}</div>`)
+    .map(
+      ([key, value]) =>
+        `<div><span class="text-secondary">${escapeHtml(key)}:</span> ${formatMetadataDisplay(value)}</div>`
+    )
     .join("");
 }
 
@@ -847,12 +732,8 @@ async function openAddItemOffcanvas(state, box, { item = null } = {}) {
     position: item?.box_position ?? 1,
   });
 
-  const nameInput = document.getElementById("itemName");
-  const qtyInput = document.getElementById("itemQty");
-  const boxInput = document.getElementById("itemBoxId");
-  const tabInput = document.getElementById("itemTabId");
-  const titleEl = document.getElementById("addItemOffcanvasLabel");
-  const submitBtn = document.querySelector("#addItemForm button[type='submit']");
+  const formRefs = ensureAddItemFormRefs(state);
+  const { nameInput, qtyInput, boxInput, tabInput, titleEl, submitBtn, fieldsContainer } = formRefs;
 
   if (boxInput) boxInput.value = item?.box_id ?? box.id;
   if (tabInput) tabInput.value = item?.tab_id ?? box.tab_id;
@@ -868,12 +749,11 @@ async function openAddItemOffcanvas(state, box, { item = null } = {}) {
     submitBtn.textContent = isEdit ? "Сохранить" : "Добавить";
   }
 
-  const container = document.getElementById("tabFieldsContainer");
-  if (container) container.innerHTML = `<div class="text-muted">Загрузка...</div>`;
+  if (fieldsContainer) fieldsContainer.innerHTML = `<div class="text-muted">Загрузка...</div>`;
 
   const fields = await getTabFields(box.tab_id);
-  if (container) {
-    container.innerHTML = "";
+  if (fieldsContainer) {
+    fieldsContainer.innerHTML = "";
     const meta = (item && item.metadata_json) || {};
     fields.forEach((field) => {
       const wrapper = document.createElement("div");
@@ -902,7 +782,7 @@ async function openAddItemOffcanvas(state, box, { item = null } = {}) {
         input.value = currentValue;
       }
       wrapper.appendChild(input);
-      container.appendChild(wrapper);
+      fieldsContainer.appendChild(wrapper);
     });
   }
 
@@ -921,11 +801,11 @@ async function openAddItemOffcanvas(state, box, { item = null } = {}) {
 async function handleItemFormSubmit(event, state, getTagManager) {
   event.preventDefault();
 
-  const tabId = parseInt(document.getElementById("itemTabId").value, 10);
-  const boxId = parseInt(document.getElementById("itemBoxId").value, 10);
-  const nameInput = document.getElementById("itemName");
-  const name = nameInput.value.trim();
-  const qtyInput = document.getElementById("itemQty");
+  const formRefs = ensureAddItemFormRefs(state);
+  const { tabInput, boxInput, nameInput, qtyInput, fieldsContainer } = formRefs;
+  const tabId = parseInt(tabInput?.value ?? "", 10);
+  const boxId = parseInt(boxInput?.value ?? "", 10);
+  const name = nameInput?.value.trim() || "";
   const qtyValue = Number.parseInt(qtyInput?.value ?? "", 10);
   const metadata_json = {};
   const errors = [];
@@ -934,7 +814,7 @@ async function handleItemFormSubmit(event, state, getTagManager) {
     return showTopAlert("Не выбран ящик для айтема", "danger");
   }
 
-  document.querySelectorAll("#tabFieldsContainer [data-field-name]").forEach((el) => {
+  fieldsContainer?.querySelectorAll("[data-field-name]").forEach((el) => {
     const key = el.dataset.fieldName;
     const val = el.value.trim();
     if (el.dataset.strong && el.dataset.allowed) {
@@ -1039,95 +919,46 @@ async function handleItemFormSubmit(event, state, getTagManager) {
   setItemFormMode(state);
 }
 
-async function handleSearch(state, tagManagerApi, query, filters = {}) {
-  state.lastSearchQuery = query;
-  const response = await searchItems(state.tabId, query);
-  const results = response.results || [];
-  const container = document.getElementById("searchResults");
-
-  const filteredResults = filterSearchResults(results, filters);
-
-  if (!filteredResults.length) {
-    const baseMessage = results.length ? "Совпадений по выбранным фильтрам не найдено" : "Совпадений не найдено";
-    container.innerHTML = `<div class="text-muted">${baseMessage}</div>`;
-    return;
-  }
-
-  const grouped = groupSearchResults(filteredResults);
-
-  container.innerHTML = grouped
-    .map((group) => {
-      const name = escapeHtml(group.name);
-      const countText = `${group.itemIds.length} шт`;
-      const boxLabel = escapeHtml(group.boxName || "—");
-      const openBtn = group.boxId
-        ? `<button class="btn btn-sm btn-outline-success" data-box-id="${group.boxId}" data-highlight-ids="${group.itemIds.join(",")}">${boxLabel}</button>`
-        : `<span class="text-muted small">Ящик неизвестен</span>`;
-
-      return `
-        <div class="d-flex align-items-center justify-content-between gap-2 border p-2 mb-2 bg-dark rounded shadow-sm flex-wrap">
-          <div class="d-flex flex-column flex-sm-row gap-2">
-            <span><strong>${name}</strong></span>
-            <span class="badge text-bg-secondary">${countText}</span>
-          </div>
-          ${openBtn}
-        </div>
-      `;
-    })
-    .join("");
-
-  container.querySelectorAll("[data-box-id]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const boxId = Number(btn.dataset.boxId);
-      if (!boxId) return;
-      const highlightIds =
-        btn.dataset.highlightIds
-          ?.split(",")
-          .map((val) => Number(val.trim()))
-          .filter((num) => !Number.isNaN(num)) || [];
-      await openBoxModal(state, tagManagerApi, boxId, highlightIds);
-    });
-  });
+function getAddItemFormRefs() {
+  return {
+    formEl: document.getElementById("addItemForm"),
+    fieldsContainer: document.getElementById("tabFieldsContainer"),
+    nameInput: document.getElementById("itemName"),
+    qtyInput: document.getElementById("itemQty"),
+    boxInput: document.getElementById("itemBoxId"),
+    tabInput: document.getElementById("itemTabId"),
+    titleEl: document.getElementById("addItemOffcanvasLabel"),
+    submitBtn: document.querySelector("#addItemForm button[type='submit']"),
+  };
 }
 
-function groupSearchResults(results = []) {
-  const map = new Map();
-  results.forEach((item) => {
-    const boxId = item.box?.id ?? null;
-    const name = item.name || "—";
-    const key = boxId ? `${boxId}::${name}` : `solo::${item.id}`;
-    if (!map.has(key)) {
-      map.set(key, {
-        name,
-        boxId,
-        boxName: item.box?.name || "—",
-        itemIds: [],
-      });
-    }
-    map.get(key).itemIds.push(item.id);
-  });
-  return Array.from(map.values());
+function ensureAddItemFormRefs(state) {
+  if (!state.ui.addItemFormRefs) {
+    state.ui.addItemFormRefs = getAddItemFormRefs();
+  }
+  return state.ui.addItemFormRefs;
 }
 
-function filterSearchResults(results = [], filters = {}) {
-  const activeFilters = Object.entries(filters || {})
-    .map(([field, value]) => [field, typeof value === "string" ? value.trim() : ""])
-    .filter(([, value]) => value);
+function getIssueFormRefs() {
+  return {
+    offcanvasEl: document.getElementById("issueItemOffcanvas"),
+    formEl: document.getElementById("issueItemForm"),
+    statusSelect: document.getElementById("issueStatusId"),
+    statusHintEl: document.getElementById("issueStatusHint"),
+    responsibleInput: document.getElementById("issueResponsibleUserName"),
+    serialInput: document.getElementById("issueSerialNumber"),
+    invoiceInput: document.getElementById("issueInvoiceNumber"),
+    summaryEl: document.getElementById("issueItemSummary"),
+    metaEl: document.getElementById("issueItemMeta"),
+    submitBtn: document.getElementById("issueSubmitBtn"),
+  };
+}
 
-  if (!activeFilters.length) {
-    return results;
+function ensureIssueFormRefs(state) {
+  if (!state.ui.issueRefs) {
+    state.ui.issueRefs = getIssueFormRefs();
   }
-
-  return results.filter((item) => {
-    const metadata = item.metadata || {};
-    return activeFilters.every(([fieldName, expected]) => {
-      const actual = metadata[fieldName];
-      if (actual === undefined || actual === null) {
-        return false;
-      }
-      return String(actual).toLowerCase().includes(expected.toLowerCase());
-    });
-  });
+  return state.ui.issueRefs;
 }
 
 function setItemFormMode(state, overrides = {}) {

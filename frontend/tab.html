@@ -8,107 +8,10 @@
   <!-- <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"> -->
   <link rel="stylesheet" href="/static/css/bootstrap.min.css">
   <link rel="stylesheet" href="/static/css/tag-elements.css">
+  <link rel="stylesheet" href="/static/css/dark-theme.css">
+  <!-- <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script> -->
   <!-- Tabulator removed: using plain Bootstrap tables -->
 
-  <!-- custom styles (tabulator styles removed) -->
-  <style rel="stylesheet" href>
-    /* === Центрированная фиксированная модалка === */
-  /* === Центрированная фиксированная модалка === */
-  #boxViewModalDialog  {
-    max-width: 65%;
-    max-height: 65%;
-    margin: 1.75rem auto; /* центрируем */
-    transition: transform 0.2s ease, margin 0.2s ease;
-  }
-
-  #boxViewModalDialog.shifted-right {
-    transform: translate(45%, 30%);
-    margin: 0;
-  }
-
-  #boxViewModalDialog.shifted-left {
-    transform: translate(12%, 30%);
-    margin: 0;
-  }
-
-  #boxViewModal.stacked {
-    z-index: 1030;
-  }
-
-  #boxViewModalContent {
-    background-color: #2e2d30;
-    color: #fff;
-    border: 1px solid #df2fdf;
-    border-radius: 10px;
-  }
-
-  .draggable-item-row {
-    cursor: grab;
-    user-select: none;
-  }
-
-  .draggable-item-row.dragging {
-    opacity: 0.65;
-    cursor: grabbing;
-  }
-
-  .box-table-scroll {
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-    position: relative;
-  }
-
-  .box-table-scroll-top {
-    display: none;
-    overflow-x: auto;
-    overflow-y: hidden;
-    height: 12px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.06);
-    position: sticky;
-    top: 0;
-    z-index: 5;
-    padding: 2px;
-  }
-
-  .box-table-scroll-active .box-table-scroll-top {
-    display: block;
-  }
-
-  .box-table-scroll-top::-webkit-scrollbar {
-    height: 10px;
-  }
-
-  .box-table-scroll-top::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  .box-table-scroll-top::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.35);
-    border-radius: 999px;
-  }
-
-  .box-table-scroll-top {
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.4) transparent;
-  }
-
-  .box-table-scroll-spacer {
-    height: 2px;
-    background: transparent;
-  }
-
-  .box-table-scroll-content {
-    overflow-x: auto;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-  }
-
-  .box-table-scroll-content::-webkit-scrollbar {
-    display: none;
-  }
-  </style>
 </head>
 <body>
   <nav class="navbar navbar-expand-lg bg-dark" data-bs-theme="dark">
@@ -126,13 +29,13 @@
               <span class="visually-hidden">(current)</span>
             </a>
           </li> -->
-          <ul>
-            <button type="button" id="dropdown-add-box" class="btn btn-outline-info">Добавить ящик</button>
+          <li class="nav-item">
+            <button id="dropdown-add-box" class="nav-link">Добавить ящик</button>
             
-          </ul>
-          <ul>
-            <button type="button" id="dropdown-create-tag" class="btn btn-outline-info">Создать тэг</button>
-          </ul>
+          </li>
+          <li>
+            <button id="dropdown-create-tag" class="nav-link">Создать тэг</button>
+          </li>
           <!-- <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false">Действия</a>
             <ul class="dropdown-menu">
@@ -457,10 +360,19 @@
   </div>
 
   <div class="modal fade" id="boxViewModal" tabindex="-1" aria-hidden="false">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable" id="boxViewModalDialog">
-      <div class="modal-content" id="boxViewModalContent">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable box-modal-dialog" id="boxViewModalDialog">
+      <div class="modal-content box-modal-content" id="boxViewModalContent">
         <div class="modal-header">
           <h5 class="modal-title">Содержимое ящика</h5>
+          <button
+            type="button"
+            class="btn btn-outline-light box-view-toggle"
+            id="boxViewExpandToggle"
+            aria-pressed="false"
+            title="Переключить размер"
+          >
+            ⤢
+          </button>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">

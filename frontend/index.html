@@ -5,28 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DSP-Ware UI</title>
 
-  <!-- Bootstrap -->
   <link href="/static/css/bootstrap.min.css" rel="stylesheet">
   <link href="/static/css/tag-elements.css" rel="stylesheet">
+  
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-
-  <!-- Tabulator removed: using plain Bootstrap tables -->
-
-  <!-- <style>
-    body { background: #f9f9fb; padding: 2rem; }
-    .field-entry { background: #f1f3f5; padding: 10px; border-radius: 8px; margin-bottom: 6px; }
-  </style> -->
-  <style>
-    /* Enforce scrollable modal bodies across pages */
-    /* .modal-dialog.modal-dialog-scrollable .modal-content {
-      max-height: 90vh;
-      overflow: hidden;
-    }
-    .modal-dialog.modal-dialog-scrollable .modal-body {
-      max-height: calc(90vh - 120px);
-      overflow-y: auto;
-    } */
-  </style>
 </head>
 <body>
   <nav class="navbar navbar-expand-lg bg-dark" data-bs-theme="dark">
@@ -37,36 +19,26 @@
       </button>
       <div class="collapse navbar-collapse" id="navbarColor02">
         <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-          <ul>
-            <button type="button" id="dropdown-new-tab" class="btn btn-outline-info">Новая вкладка</button>
-          </ul>
+          <li class="nav-item">
+            <button id="dropdown-new-tab" class="nav-link">Новая вкладка</button>
+          </li>
           
-          <ul>
-            <button type="button" id="dropdown-create-tag" class="btn btn-outline-info">Создать тэг</button>
-          </ul>
+          <li class="nav-item">
+            <button id="dropdown-create-tag" class="nav-link">Создать тэг</button>
+          </li>
 
-          <ul>
-            <button type="button" id="dropdown-create-status" class="btn btn-outline-info">Создать статус</button>
-          </ul>
+          <li class="nav-item">
+            <button id="dropdown-create-status" class="nav-link">Создать статус</button>
+          </li>
 
-          <ul>
-            <button type="button" id="dropdown-check-history" class="btn btn-outline-info">История выдачи</button>
-          </ul>
-          <ul>
-            <button type="button" id="dropdown-open-parser" class="btn btn-outline-info">Парсер</button>
-          </ul>
-          <!-- <li class="nav-item">
-            <a class="nav-link active" href="/">Главная <span class="visually-hidden">(current)</span></a>
-          </li> -->
-          <!-- <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false">Действия</a>
-            <ul class="dropdown-menu">
-              <li><a class="dropdown-item" href="#" id="dropdown-new-tab">Новая вкладка</a></li>
-              <li><a class="dropdown-item" href="#" id="dropdown-create-tag">Создать тэг</a></li>
-              <li><hr class="dropdown-divider"></li>
-              <li><a class="dropdown-item" href="#">reserved</a></li>
-            </ul>
-          </li> -->
+
+          <li class="nav-item">
+            <button id="dropdown-check-history" class="nav-link">История выдачи</button>
+          </li>
+
+          <li class="nav-item">
+            <button id="dropdown-open-parser" class="nav-link">Парсер</button>
+          </li>
         </ul>
         <div class="d-flex align-items-center gap-2 ms-auto flex-wrap">
           <span id="currentUserBadge" class="badge text-bg-secondary d-none"></span>
