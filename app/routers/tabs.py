@@ -29,3 +29,13 @@ def update_tab(tab_id: int, tab_data: schemas.TabUpdate, db: Session = Depends(d
 @router.delete("/{tab_id}", dependencies=[Depends(require_edit_access)])
 def delete_tab(tab_id: int, db: Session = Depends(database.get_db)):
     return tabs.delete_tab(db, tab_id)
+
+
+@router.get("/{tab_id}/sync", response_model=schemas.TabSyncSettings, dependencies=[Depends(require_edit_access)])
+def read_tab_sync_settings(tab_id: int, db: Session = Depends(database.get_db)):
+    return tabs.get_tab_sync_settings(db, tab_id)
+
+
+@router.put("/{tab_id}/sync", response_model=schemas.TabSyncSettings, dependencies=[Depends(require_edit_access)])
+def update_tab_sync(tab_id: int, payload: schemas.TabSyncUpdate, db: Session = Depends(database.get_db)):
+    return tabs.update_tab_sync_settings(db, tab_id, payload)

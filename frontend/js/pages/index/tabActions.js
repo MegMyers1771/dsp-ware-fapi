@@ -2,14 +2,32 @@ import {
   createTab,
   createTabField as apiCreateTabField,
   deleteTabField as apiDeleteTabField,
+  fetchParserEnv,
+  fetchTabSyncSettings,
   getBoxes,
   getItemsByBox,
   getTabFields,
+  listParserConfigs,
+  updateParserEnv,
   updateTab,
   updateTabField as apiUpdateTabField,
+  updateTabSyncSettings,
 } from "../../api.js";
 import { showTopAlert } from "../../common/alerts.js";
+import { escapeHtml } from "../../common/dom.js";
 import { addFieldRow, collectFields } from "./fields.js";
+
+const syncModalState = {
+  modal: null,
+  form: null,
+  enableSwitch: null,
+  configSelect: null,
+  spreadsheetInput: null,
+  submitBtn: null,
+  tabNameEl: null,
+  currentTab: null,
+  onTabsChanged: null,
+};
 
 export function initTabActions({ onTabsChanged }) {
   document.getElementById("createTabForm")?.addEventListener("submit", (event) =>
@@ -18,6 +36,7 @@ export function initTabActions({ onTabsChanged }) {
   document.getElementById("editTabForm")?.addEventListener("submit", (event) =>
     handleEditTab(event, onTabsChanged)
   );
+  initSyncModal(onTabsChanged);
 }
 
 async function handleCreateTab(event, onTabsChanged) {
@@ -180,6 +199,48 @@ export async function openEditTabModal(tab) {
   new bootstrap.Modal(document.getElementById("editTabModal")).show();
 }
 
+export async function openTabSyncModal(tab, { onTabsChanged } = {}) {
+  if (!syncModalState.modal) {
+    initSyncModal(onTabsChanged);
+  }
+  if (!syncModalState.modal) {
+    showTopAlert("Модалка синхронизации недоступна", "danger");
+    return;
+  }
+  if (onTabsChanged) {
+    syncModalState.onTabsChanged = onTabsChanged;
+  }
+  syncModalState.currentTab = tab;
+  syncModalState.tabNameEl.textContent = `Синхронизация «${tab.name}»`;
+  syncModalState.submitBtn?.setAttribute("disabled", "disabled");
+  syncModalState.configSelect?.classList.remove("is-invalid");
+
+  try {
+    const [settings, env, configs] = await Promise.all([
+      fetchTabSyncSettings(tab.id),
+      fetchParserEnv(),
+      listParserConfigs(),
+    ]);
+    renderSyncConfigOptions(configs, settings.config_name);
+    if (syncModalState.enableSwitch) {
+      syncModalState.enableSwitch.checked = !!settings.enable_sync;
+    }
+    if (syncModalState.configSelect) {
+      syncModalState.configSelect.value = settings.config_name || "";
+    }
+    if (syncModalState.spreadsheetInput) {
+      syncModalState.spreadsheetInput.value = env.spreadsheet_id || "";
+      syncModalState.spreadsheetInput.dataset.initialValue = env.spreadsheet_id || "";
+    }
+    syncModalState.submitBtn?.removeAttribute("disabled");
+    syncModalState.modal.show();
+  } catch (err) {
+    syncModalState.submitBtn?.removeAttribute("disabled");
+    console.error("Не удалось загрузить настройки синхронизации", err);
+    showTopAlert(err?.message || "Не удалось загрузить настройки синхронизации", "danger");
+  }
+}
+
 function lockFieldRow(row) {
   row.dataset.locked = "1";
   const removeBtn = row.querySelector(".remove-field");
@@ -235,4 +296,76 @@ async function fieldsUsedMap(tabId, fields) {
   }
 
   return map;
+}
+
+function initSyncModal(onTabsChanged) {
+  const modalEl = document.getElementById("tabSyncModal");
+  if (!modalEl || typeof bootstrap === "undefined" || !bootstrap.Modal) {
+    return;
+  }
+  syncModalState.onTabsChanged = onTabsChanged;
+  syncModalState.modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+  syncModalState.form = document.getElementById("tabSyncForm");
+  syncModalState.enableSwitch = document.getElementById("tabSyncEnableSwitch");
+  syncModalState.configSelect = document.getElementById("tabSyncConfigSelect");
+  syncModalState.spreadsheetInput = document.getElementById("tabSyncSpreadsheetId");
+  syncModalState.submitBtn = document.getElementById("tabSyncSubmit");
+  syncModalState.tabNameEl = document.getElementById("tabSyncTabName");
+  syncModalState.form?.addEventListener("submit", handleTabSyncSubmit);
+}
+
+function renderSyncConfigOptions(configs, selectedName) {
+  if (!syncModalState.configSelect) return;
+  const options = [
+    '<option value="">— Выберите конфиг —</option>',
+    ...configs.map(
+      (config) =>
+        `<option value="${config.name}" ${config.name === selectedName ? "selected" : ""}>${escapeHtml(
+          config.worksheet_name || config.name
+        )}</option>`
+    ),
+  ];
+  syncModalState.configSelect.innerHTML = options.join("");
+}
+
+async function handleTabSyncSubmit(event) {
+  event.preventDefault();
+  if (!syncModalState.currentTab) return;
+  const configName = syncModalState.configSelect?.value || "";
+  const enableSync = !!(syncModalState.enableSwitch?.checked && configName);
+  if (syncModalState.enableSwitch?.checked && !configName) {
+    syncModalState.configSelect?.classList.add("is-invalid");
+    showTopAlert("Выберите конфигурацию для синхронизации", "danger");
+    return;
+  }
+  syncModalState.configSelect?.classList.remove("is-invalid");
+  const spreadsheetId = (syncModalState.spreadsheetInput?.value || "").trim();
+  const initialId = syncModalState.spreadsheetInput?.dataset.initialValue || "";
+
+  const requests = [
+    updateTabSyncSettings(syncModalState.currentTab.id, {
+      enable_sync: enableSync,
+      config_name: enableSync ? configName : null,
+    }),
+  ];
+  if (spreadsheetId !== initialId) {
+    requests.push(
+      updateParserEnv({
+        spreadsheet_id: spreadsheetId,
+      })
+    );
+  }
+
+  syncModalState.submitBtn?.setAttribute("disabled", "disabled");
+  try {
+    await Promise.all(requests);
+    showTopAlert("Настройки синхронизации сохранены", "success");
+    syncModalState.modal?.hide();
+    await syncModalState.onTabsChanged?.();
+  } catch (err) {
+    console.error("Ошибка сохранения синхронизации", err);
+    showTopAlert(err?.message || "Не удалось сохранить синхронизацию", "danger");
+  } finally {
+    syncModalState.submitBtn?.removeAttribute("disabled");
+  }
 }

@@ -72,3 +72,9 @@ def save_credentials_file(data: Dict[str, Any], destination: str | None = None) 
         raise HTTPException(status_code=400, detail=f"Не удалось сохранить credentials: {exc}") from exc
 
     return update_settings({"CREDENTIALS": path_value})
+
+
+def get_credentials_file() -> str:
+    data = _read_config()
+    path_value = data.get("CREDENTIALS") or "test-credentials.json"
+    return str(_resolve_path(path_value))

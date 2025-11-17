@@ -57,6 +57,8 @@ class Tab(Base):
     name = Column(String, nullable=False)
     description = Column(String, nullable=True)
     enable_pos = Column(Boolean, nullable=False, default=True)
+    enable_sync = Column(Boolean, nullable=False, default=False)
+    sync_config = Column(String, nullable=True)
     tag_ids = Column(JSON, nullable=False, default=list)
     boxes = relationship("Box", back_populates="tab", cascade="all, delete")
     fields = relationship("TabField", back_populates="tab", cascade="all, delete")

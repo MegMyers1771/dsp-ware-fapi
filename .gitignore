@@ -9,6 +9,6 @@ test-credentials.json
 alembic/__archive__/*
 docker-test-db/
 appstart_global.sh
-google-sheets-parser/configs/*
-google-sheets-parser/parsed-tabs/*
+gsheets_parser/configs/*
+gsheets_parser/parsed-tabs/*
 sheets_config.json

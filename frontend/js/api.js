@@ -86,6 +86,27 @@ export async function deleteTab(id) {
   }
 }
 
+export async function fetchTabSyncSettings(tabId) {
+  const res = await authFetch(`${API_URL}/tabs/${tabId}/sync`);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Не удалось загрузить настройки синхронизации");
+  }
+  return await res.json();
+}
+
+export async function updateTabSyncSettings(tabId, payload) {
+  const res = await authFetch(`${API_URL}/tabs/${tabId}/sync`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Не удалось сохранить настройки синхронизации");
+  }
+  return await res.json();
+}
+
 // ---- Tab Fields ----
 export async function getTabFields(tabId) {
   const res = await authFetch(`${API_URL}/tab_fields/${tabId}`);

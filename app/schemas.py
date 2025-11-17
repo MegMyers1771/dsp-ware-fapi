@@ -48,6 +48,8 @@ class StatusCreate(StatusBase):
 
 class StatusRead(StatusBase):
     id: int
+    usage_count: int = 0
+    can_delete: bool = True
     model_config = ConfigDict(from_attributes=True)
 
 class StatusUpdate(BaseModel):
@@ -68,6 +70,7 @@ class ItemIssuePayload(BaseModel):
     responsible_user_name: UsernameStr
     serial_number: Optional[str] = None
     invoice_number: Optional[str] = None
+    qty: int = Field(1, ge=1)
 
 
 class ItemUtilizedRead(BaseModel):
@@ -143,12 +146,25 @@ class TabRead(TabBase):
     id: int
     box_count: Optional[int] = 0
     fields: List["TabFieldRead"] = []
+    enable_sync: bool = False
+    sync_config: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
     # class Config:
     #     orm_mode = True
 
 class TabUpdate(TabBase):
     ...
+
+
+class TabSyncSettings(BaseModel):
+    tab_id: int
+    enable_sync: bool = False
+    config_name: Optional[str] = None
+
+
+class TabSyncUpdate(BaseModel):
+    enable_sync: bool
+    config_name: Optional[str] = None
 
 
 # --- Tab fields ---

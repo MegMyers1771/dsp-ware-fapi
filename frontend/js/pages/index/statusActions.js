@@ -1,4 +1,4 @@
-import { createStatus, fetchStatuses } from "../../api.js";
+import { createStatus, deleteStatus, fetchStatuses } from "../../api.js";
 import { showTopAlert } from "../../common/alerts.js";
 import { escapeHtml } from "../../common/dom.js";
 
@@ -30,31 +30,67 @@ export function initStatusActions({ onStatusCreated } = {}) {
   const colorInput = document.getElementById("statusColor");
   const statusListContainer = document.getElementById("statusListContainer");
 
+  let cachedStatuses = [];
+
+  const buildStatusBubble = (status) => {
+    const color = status.color || DEFAULT_STATUS_COLOR;
+    const useDarkText = shouldUseDarkText(color);
+    const textColor = useDarkText ? "#212529" : "#fff";
+    const label = escapeHtml(status.name || "Статус");
+    const usageCount = Number(status.usage_count) || 0;
+    const usageHint =
+      status.can_delete !== false
+        ? `<button type="button" class="status-delete-btn" title="Удалить статус" data-action="delete-status" data-status-id="${status.id}" data-status-name="${label}">&times;</button>`
+        : `<span class="status-bubble-hint" title="Статус используется в истории выдач">${usageCount === 1 ? "1 выдача" : `${usageCount} выдач`}</span>`;
+
+    return `
+      <div class="status-preview-bubble${useDarkText ? " dark-text" : ""}" style="background:${color};color:${textColor};">
+        <span class="status-bubble-label">${label}</span>
+        ${usageHint}
+      </div>
+    `;
+  };
+
   const renderStatusList = (statuses = []) => {
     if (!statusListContainer) return;
     if (!statuses.length) {
       statusListContainer.innerHTML = `<div class="text-muted small">Статусов пока нет</div>`;
       return;
     }
-    statusListContainer.innerHTML = statuses
-      .map((status) => {
-        const color = status.color || DEFAULT_STATUS_COLOR;
-        const useDarkText = shouldUseDarkText(color);
-        const textColor = useDarkText ? "#212529" : "#fff";
-        return `<span class="status-preview-bubble${useDarkText ? " dark-text" : ""}" style="background:${color};color:${textColor};">${escapeHtml(status.name || "Статус")}</span>`;
-      })
-      .join("");
+    statusListContainer.innerHTML = statuses.map((status) => buildStatusBubble(status)).join("");
   };
 
   const refreshStatuses = async () => {
     if (!statusListContainer) return;
     statusListContainer.innerHTML = `<div class="text-muted small">Загрузка...</div>`;
     try {
-      const statuses = await fetchStatuses();
-      renderStatusList(statuses || []);
+      cachedStatuses = (await fetchStatuses()) || [];
+      renderStatusList(cachedStatuses);
     } catch (err) {
       console.warn("Не удалось загрузить статусы", err);
       statusListContainer.innerHTML = `<div class="text-danger small">Не удалось загрузить статусы</div>`;
+    }
+  };
+
+  const getStatusById = (statusId) =>
+    cachedStatuses.find((status) => Number(status.id) === Number(statusId));
+
+  const handleDeleteStatus = async (statusId, triggerEl) => {
+    const status = getStatusById(statusId);
+    const displayName = status?.name || `#${statusId}`;
+    if (!window.confirm(`Удалить статус «${displayName}»?`)) {
+      return;
+    }
+    triggerEl?.setAttribute("disabled", "disabled");
+    try {
+      await deleteStatus(statusId);
+      showTopAlert(`Статус «${displayName}» удалён`, "success");
+      await refreshStatuses();
+    } catch (err) {
+      console.error("Не удалось удалить статус", err);
+      showTopAlert(err?.message || "Не удалось удалить статус", "danger");
+    } finally {
+      triggerEl?.removeAttribute("disabled");
     }
   };
 
@@ -77,6 +113,14 @@ export function initStatusActions({ onStatusCreated } = {}) {
   });
 
   renderStatusList([]);
+  statusListContainer?.addEventListener("click", (event) => {
+    const deleteBtn = event.target.closest("[data-action='delete-status']");
+    if (!deleteBtn) return;
+    event.preventDefault();
+    const statusId = Number(deleteBtn.dataset.statusId);
+    if (!Number.isInteger(statusId) || statusId <= 0) return;
+    handleDeleteStatus(statusId, deleteBtn);
+  });
   formEl?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const name = nameInput?.value.trim();

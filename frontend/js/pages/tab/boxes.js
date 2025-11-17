@@ -9,7 +9,7 @@ import {
   updateItem,
   fetchStatuses,
 } from "../../api.js";
-import { showTopAlert } from "../../common/alerts.js";
+import { showTopAlert, showBottomToast } from "../../common/alerts.js";
 import { escapeHtml } from "../../common/dom.js";
 import { renderTagFillCell } from "../../common/tagTemplates.js";
 import { getDefaultItemFormMode } from "./state.js";
@@ -561,7 +561,18 @@ function setupIssueOffcanvas(state, { onIssued } = {}) {
   state.ui.issueOffcanvasInstance = instance;
 
   const refs = ensureIssueFormRefs(state);
-  const { statusSelect, statusHintEl, responsibleInput, serialInput, invoiceInput, summaryEl, metaEl, submitBtn } = refs;
+  const {
+    statusSelect,
+    statusHintEl,
+    responsibleInput,
+    qtyInput,
+    qtyHintEl,
+    serialInput,
+    invoiceInput,
+    summaryEl,
+    metaEl,
+    submitBtn,
+  } = refs;
 
   if (responsibleInput) {
     responsibleInput.readOnly = true;
@@ -630,6 +641,19 @@ function setupIssueOffcanvas(state, { onIssued } = {}) {
       showTopAlert("Авторизуйтесь, чтобы выдать айтем", "warning");
       return;
     }
+    const availableQty = Number(pendingContext.item?.qty) || 0;
+    const requestedQtyRaw = qtyInput?.value ?? "1";
+    const requestedQty = Number.parseInt(requestedQtyRaw, 10);
+    if (!Number.isInteger(requestedQty) || requestedQty <= 0) {
+      showTopAlert("Количество должно быть положительным числом", "warning");
+      qtyInput?.focus();
+      return;
+    }
+    if (availableQty > 0 && requestedQty > availableQty) {
+      showTopAlert(`Доступно только ${availableQty} шт.`, "warning");
+      qtyInput?.focus();
+      return;
+    }
     const serialNumber = serialInput?.value.trim();
     const invoiceNumber = invoiceInput?.value.trim();
     submitBtn?.setAttribute("disabled", "disabled");
@@ -637,6 +661,7 @@ function setupIssueOffcanvas(state, { onIssued } = {}) {
       await issueInventoryItem(pendingContext.item.id, {
         status_id: statusId,
         responsible_user_name: responsible,
+        qty: requestedQty,
         serial_number: serialNumber || null,
         invoice_number: invoiceNumber || null,
       });
@@ -670,6 +695,21 @@ function setupIssueOffcanvas(state, { onIssued } = {}) {
         return;
       }
       if (responsibleInput) responsibleInput.value = currentUserName;
+      const availableQty = Number(pendingContext.item?.qty) || 0;
+      if (qtyInput) {
+        qtyInput.value = "1";
+        qtyInput.min = "1";
+        if (availableQty > 0) {
+          qtyInput.max = String(availableQty);
+          qtyInput.removeAttribute("disabled");
+        } else {
+          qtyInput.max = "";
+          qtyInput.setAttribute("disabled", "disabled");
+        }
+      }
+      if (qtyHintEl) {
+        qtyHintEl.textContent = availableQty > 0 ? `Доступно: ${availableQty}` : "Товар закончился";
+      }
       if (serialInput) serialInput.value = "";
       if (invoiceInput) invoiceInput.value = "";
       const savedStatusId = window.localStorage?.getItem("issueStatusId") || "";
@@ -861,6 +901,7 @@ async function handleItemFormSubmit(event, state, getTagManager) {
       await updateItem(state.itemFormMode.itemId, payload);
       highlightId = state.itemFormMode.itemId;
       showTopAlert("Айтем обновлён", "success");
+      notifySheetEvent("обновлена", state.boxesById.get(Number(boxId)), name);
       state.ui.addItemOffcanvasInstance?.hide();
     } catch (err) {
       console.error("Ошибка обновления айтема:", err);
@@ -898,6 +939,7 @@ async function handleItemFormSubmit(event, state, getTagManager) {
     createdItem = await res.json().catch(() => null);
     highlightId = createdItem?.id || null;
     showTopAlert("Айтем добавлен", "success");
+    notifySheetEvent("создана", state.boxesById.get(Number(boxId)), name);
     nameInput.value = "";
     if (qtyInput) {
       qtyInput.value = "1";
@@ -946,6 +988,8 @@ function getIssueFormRefs() {
     statusSelect: document.getElementById("issueStatusId"),
     statusHintEl: document.getElementById("issueStatusHint"),
     responsibleInput: document.getElementById("issueResponsibleUserName"),
+    qtyInput: document.getElementById("issueQty"),
+    qtyHintEl: document.getElementById("issueQtyHint"),
     serialInput: document.getElementById("issueSerialNumber"),
     invoiceInput: document.getElementById("issueInvoiceNumber"),
     summaryEl: document.getElementById("issueItemSummary"),
@@ -959,6 +1003,14 @@ function ensureIssueFormRefs(state) {
     state.ui.issueRefs = getIssueFormRefs();
   }
   return state.ui.issueRefs;
+}
+
+function notifySheetEvent(action, box, itemName) {
+  if (!action) return;
+  const boxLabel = box?.name || (box?.id ? `Ящик #${box.id}` : "Ящик");
+  const safeItem = itemName || "Без названия";
+  const message = `Строка в Google Sheets — ${action} — ${boxLabel} — ${safeItem}`;
+  showBottomToast(message, { title: "Синхронизация", delay: 6000 });
 }
 
 function setItemFormMode(state, overrides = {}) {

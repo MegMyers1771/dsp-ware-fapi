@@ -225,3 +225,67 @@ def test_issue_history_listing(client: TestClient):
     assert target["responsible_user_name"] == responsible_user_name
     assert target["invoice_number"] == "INV-42"
     assert target["item_snapshot"].get("item_name") == "Switch"
+
+
+def test_status_deletion_rules(client: TestClient):
+    status_res = client.post("/statuses/", json={"name": "Temp Status", "color": "#101010"})
+    assert status_res.status_code == 200
+    status_id = status_res.json()["id"]
+
+    delete_res = client.delete(f"/statuses/{status_id}")
+    assert delete_res.status_code == 200, delete_res.text
+
+    used_status_res = client.post("/statuses/", json={"name": "Used Status", "color": "#202020"})
+    assert used_status_res.status_code == 200
+    used_status_id = used_status_res.json()["id"]
+
+    tab_res = client.post("/tabs", json={"name": "Status Tab"})
+    assert tab_res.status_code == 200
+    tab_id = tab_res.json()["id"]
+
+    field_res = client.post("/tab_fields", json={"tab_id": tab_id, "name": "Meta", "strong": False})
+    assert field_res.status_code == 200
+
+    box_res = client.post("/boxes", json={"tab_id": tab_id, "name": "Status Box", "description": ""})
+    assert box_res.status_code == 200
+    box_id = box_res.json()["id"]
+
+    item_res = client.post(
+        "/items/",
+        json={
+            "name": "Status Item",
+            "tab_id": tab_id,
+            "box_id": box_id,
+            "metadata_json": {},
+            "tag_ids": [],
+            "qty": 1,
+            "position": 1,
+        },
+    )
+    assert item_res.status_code == 200, item_res.text
+    item_id = item_res.json()["id"]
+
+    responsible = "status_user"
+    ensure_user(client, responsible)
+
+    issue_res = client.post(
+        f"/items/{item_id}/issue",
+        json={
+            "status_id": used_status_id,
+            "responsible_user_name": responsible,
+            "serial_number": None,
+            "invoice_number": None,
+        },
+    )
+    assert issue_res.status_code == 200, issue_res.text
+
+    blocked_delete = client.delete(f"/statuses/{used_status_id}")
+    assert blocked_delete.status_code == 400
+
+    statuses_res = client.get("/statuses")
+    assert statuses_res.status_code == 200
+    payload = statuses_res.json()
+    target = next((entry for entry in payload if entry["id"] == used_status_id), None)
+    assert target is not None
+    assert target["usage_count"] >= 1
+    assert target["can_delete"] is False

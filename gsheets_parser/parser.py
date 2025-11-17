@@ -7,7 +7,7 @@ from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 
 
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
 
 def _load_credentials(creds_source: Union[str, Dict[str, Any], Credentials]) -> Credentials:
@@ -29,9 +29,9 @@ def _load_credentials(creds_source: Union[str, Dict[str, Any], Credentials]) -> 
     raise TypeError("Unsupported credentials source type")
 
 
-def _build_sheets_service(creds_source: Union[str, Dict[str, Any], Credentials]):
+def build_sheets_service(creds_source: Union[str, Dict[str, Any], Credentials]):
     creds = _load_credentials(creds_source)
-    return build('sheets', 'v4', credentials=creds)
+    return build("sheets", "v4", credentials=creds, cache_discovery=False)
 
 
 
@@ -40,7 +40,7 @@ def _build_sheets_service(creds_source: Union[str, Dict[str, Any], Credentials])
 ####################################
 
 def get_data_validation_values(spreadsheet_id, range_name, sheet_name, creds_source):
-    service = _build_sheets_service(creds_source)
+    service = build_sheets_service(creds_source)
 
     # 1. Определяем sheetId вкладки по имени
     metadata = service.spreadsheets().get(
@@ -92,7 +92,7 @@ def get_data_validation_values(spreadsheet_id, range_name, sheet_name, creds_sou
 ####################################
 
 def load_sheet_df(spreadsheet_id, worksheet_name, creds_source):
-    service = _build_sheets_service(creds_source)
+    service = build_sheets_service(creds_source)
 
     resp = service.spreadsheets().values().get(
         spreadsheetId=spreadsheet_id,
@@ -206,6 +206,96 @@ def parse_boxes(df, config, reserved_values):
 
     return result
 
+
+def extract_box_structure(values, config):
+    """
+    Возвращает структуру боксов/айтемов с указанием строк листа (row_number).
+    values — матрица вида [[header...], [...], ...] как возвращает Sheets API.
+    """
+    if not values:
+        return []
+    header = values[0]
+    rows = values[1:]
+    header_map = {str(col).strip(): idx for idx, col in enumerate(header)}
+    box_column_name = config.get("box_column")
+    if box_column_name not in header_map:
+        raise ValueError(f"Колонка ящика «{box_column_name}» не найдена в таблице")
+    box_idx = header_map[box_column_name]
+
+    field_map = config.get("fields") or {}
+    field_indices = {}
+    for field, column in field_map.items():
+        column_idx = header_map.get(column)
+        if column_idx is not None:
+            field_indices[field] = column_idx
+
+    total_rows = len(rows)
+
+    def get_cell(row, idx):
+        if idx is None:
+            return ""
+        if idx >= len(row):
+            return ""
+        return str(row[idx]).strip()
+
+    def is_valid_box(start_idx):
+        count = 1
+        for j in range(start_idx + 1, total_rows):
+            cell = get_cell(rows[j], box_idx)
+            if not cell:
+                count += 1
+            else:
+                break
+        return count >= 3
+
+    boxes = []
+    current_box = None
+    current_items = None
+
+    i = 0
+    while i < total_rows:
+        row = rows[i]
+        row_number = i + 2  # с учётом заголовка
+        box_value = get_cell(row, box_idx)
+
+        if box_value:
+            if not is_valid_box(i):
+                i += 1
+                continue
+
+            if current_box is not None:
+                boxes.append(current_box)
+
+            current_box = {
+                "box": box_value,
+                "__header_row": row_number,
+                "items": [],
+            }
+            current_items = current_box["items"]
+
+        if not current_box:
+            i += 1
+            continue
+
+        item = {}
+        skip_item = False
+        for field_name, column_idx in field_indices.items():
+            value = get_cell(row, column_idx)
+            item[field_name] = value
+            if field_name.lower() in ["имя", "товар", "name"] and not value:
+                skip_item = True
+                break
+
+        if not skip_item:
+            item["__row_number"] = row_number
+            current_items.append(item)
+
+        i += 1
+
+    if current_box:
+        boxes.append(current_box)
+
+    return boxes
 
 ####################################
 # RUN

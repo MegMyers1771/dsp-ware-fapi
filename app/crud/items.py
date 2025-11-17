@@ -5,6 +5,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
 from fastapi import HTTPException
 from app import models, schemas
+from app.services import sync_dispatcher
 
 
 def _get_tab_fields(db: Session, tab_id: int, *, required: bool = False) -> List[models.TabField]:
@@ -122,6 +123,14 @@ def create_item(db: Session, item: schemas.ItemCreate):
     if not tab:
         raise HTTPException(status_code=404, detail="Tab not found")
 
+    box = (
+        db.query(models.Box)
+        .filter(models.Box.id == item.box_id, models.Box.tab_id == item.tab_id)
+        .first()
+    )
+    if not box:
+        raise HTTPException(status_code=404, detail="Box not found")
+
     fields = _get_tab_fields(db, tab.id, required=True)
     
     if not item.position:
@@ -154,7 +163,10 @@ def create_item(db: Session, item: schemas.ItemCreate):
     db.add(new_item)
     db.commit()
     db.refresh(new_item)
-    return _item_to_schema(new_item, fields)
+    result = _item_to_schema(new_item, fields)
+    sync_payload = sync_dispatcher.build_item_payload(tab, box, new_item, fields)
+    sync_dispatcher.enqueue_item_created(sync_payload)
+    return result
 
 def search_items(db: Session, query: str, tab_id: int, limit: int = 100):
     """
@@ -212,6 +224,9 @@ def update_item(db: Session, item_id: int, item_data: schemas.ItemUpdate):
     if not db_item:
         raise HTTPException(status_code=404, detail="Item not found")
 
+    tab = db.query(models.Tab).filter(models.Tab.id == db_item.tab_id).first()
+    current_box = db.query(models.Box).filter(models.Box.id == db_item.box_id).first()
+
     payload = item_data.model_dump(exclude_unset=True)
     payload.pop("box_position", None)
     if "tag_ids" in payload and payload["tag_ids"] is not None:
@@ -227,10 +242,19 @@ def update_item(db: Session, item_id: int, item_data: schemas.ItemUpdate):
         _compress_box_positions(db, old_box_id, old_position)
         next_position = _get_next_box_position(db, new_box_id)
 
+    tracked_keys = {"name", "qty", "metadata_json", "box_id"}
+    sync_needed = any(key in payload for key in tracked_keys)
+
     tab_fields: Optional[List[models.TabField]] = None
     if "metadata_json" in payload:
         tab_fields = _get_tab_fields(db, db_item.tab_id, required=True)
         payload["metadata_json"] = _metadata_to_storage(payload["metadata_json"], tab_fields)
+    elif sync_needed:
+        tab_fields = _get_tab_fields(db, db_item.tab_id)
+
+    before_payload = None
+    if sync_needed and tab_fields is not None:
+        before_payload = sync_dispatcher.build_item_payload(tab, current_box, db_item, tab_fields)
 
     for key, value in payload.items():
         setattr(db_item, key, value)
@@ -242,6 +266,15 @@ def update_item(db: Session, item_id: int, item_data: schemas.ItemUpdate):
     db.refresh(db_item)
     if tab_fields is None:
         tab_fields = _get_tab_fields(db, db_item.tab_id)
+
+    updated_box = current_box
+    if box_changed:
+        updated_box = db.query(models.Box).filter(models.Box.id == db_item.box_id).first()
+
+    if sync_needed:
+        after_payload = sync_dispatcher.build_item_payload(tab, updated_box, db_item, tab_fields)
+        sync_dispatcher.enqueue_item_updated(before_payload, after_payload)
+
     return _item_to_schema(db_item, tab_fields)
 
 def delete_item(db: Session, item_id: int):
@@ -249,12 +282,18 @@ def delete_item(db: Session, item_id: int):
     if not db_item:
         raise HTTPException(status_code=404, detail="Item not found")
 
+    tab = db.query(models.Tab).filter(models.Tab.id == db_item.tab_id).first()
+    box = db.query(models.Box).filter(models.Box.id == db_item.box_id).first()
+    tab_fields = _get_tab_fields(db, db_item.tab_id)
+    payload = sync_dispatcher.build_item_payload(tab, box, db_item, tab_fields)
+
     box_id = db_item.box_id
     deleted_position = db_item.box_position
 
     db.delete(db_item)
     _compress_box_positions(db, box_id, deleted_position)
     db.commit()
+    sync_dispatcher.enqueue_item_deleted(payload)
     return {"detail": f"Item {item_id} deleted"}
 
 
@@ -294,6 +333,10 @@ def issue_item(db: Session, item_id: int, payload: schemas.ItemIssuePayload):
     if not user:
         raise HTTPException(status_code=404, detail="Ответственный пользователь не найден")
 
+    issue_qty = max(int(payload.qty or 1), 1)
+    if issue_qty > current_qty:
+        raise HTTPException(status_code=400, detail="Недостаточно количества для выдачи")
+
     issue = models.Issue(status_id=status.id)
     serial_number = (payload.serial_number or "").strip() or None
     invoice_number = (payload.invoice_number or "").strip() or None
@@ -307,7 +350,10 @@ def issue_item(db: Session, item_id: int, payload: schemas.ItemIssuePayload):
 
     db.add(item_utilized)
 
-    should_delete = current_qty <= 1
+    tab_fields = _get_tab_fields(db, db_item.tab_id)
+    before_payload = sync_dispatcher.build_item_payload(db_item.tab, db_item.box, db_item, tab_fields)
+
+    should_delete = current_qty - issue_qty <= 0
     box_id = db_item.box_id
     deleted_position = db_item.box_position
 
@@ -315,9 +361,15 @@ def issue_item(db: Session, item_id: int, payload: schemas.ItemIssuePayload):
         db.delete(db_item)
         _compress_box_positions(db, box_id, deleted_position)
     else:
-        db_item.qty = current_qty - 1
+        db_item.qty = current_qty - issue_qty
 
     db.commit()
+    if should_delete:
+        sync_dispatcher.enqueue_item_deleted(before_payload)
+    else:
+        db.refresh(db_item)
+        after_payload = sync_dispatcher.build_item_payload(db_item.tab, db_item.box, db_item, tab_fields)
+        sync_dispatcher.enqueue_item_updated(before_payload, after_payload)
     db.refresh(item_utilized)
     return item_utilized
 

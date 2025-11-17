@@ -25,6 +25,8 @@ def get_tabs(db: Session):
             "fields": fields,
             "tag_ids": tab.tag_ids or [],
             "enable_pos": bool(tab.enable_pos),
+            "enable_sync": bool(tab.enable_sync),
+            "sync_config": tab.sync_config,
         })
     return result
 
@@ -66,6 +68,8 @@ def get_tab(db: Session, tab_id: int):
         "fields": fields,
         "tag_ids": tab.tag_ids or [],
         "enable_pos": bool(tab.enable_pos),
+        "enable_sync": bool(tab.enable_sync),
+        "sync_config": tab.sync_config,
     }
 
 
@@ -82,3 +86,32 @@ def delete_tab(db: Session, tab_id: int):
     db.delete(tab)
     db.commit()
     return {"detail": "Tab deleted successfully"}
+
+
+def get_tab_sync_settings(db: Session, tab_id: int) -> schemas.TabSyncSettings:
+    tab = db.query(models.Tab).filter(models.Tab.id == tab_id).first()
+    if not tab:
+        raise HTTPException(status_code=404, detail="Tab not found")
+    return schemas.TabSyncSettings(
+        tab_id=tab.id,
+        enable_sync=bool(tab.enable_sync),
+        config_name=tab.sync_config,
+    )
+
+
+def update_tab_sync_settings(db: Session, tab_id: int, payload: schemas.TabSyncUpdate) -> schemas.TabSyncSettings:
+    tab = db.query(models.Tab).filter(models.Tab.id == tab_id).first()
+    if not tab:
+        raise HTTPException(status_code=404, detail="Tab not found")
+
+    enable_sync = bool(payload.enable_sync and payload.config_name)
+    tab.enable_sync = enable_sync
+    tab.sync_config = payload.config_name if enable_sync else None
+
+    db.commit()
+    db.refresh(tab)
+    return schemas.TabSyncSettings(
+        tab_id=tab.id,
+        enable_sync=bool(tab.enable_sync),
+        config_name=tab.sync_config,
+    )

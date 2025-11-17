@@ -2,7 +2,7 @@ import { showTopAlert } from "../../common/alerts.js";
 import { setupFieldControls } from "./fields.js";
 import { createTagManager } from "./tagManagement.js";
 import { createTabsTable } from "./tabsTable.js";
-import { initTabActions, openEditTabModal } from "./tabActions.js";
+import { initTabActions, openEditTabModal, openTabSyncModal } from "./tabActions.js";
 import { initStatusActions } from "./statusActions.js";
 import { createIndexState } from "./state.js";
 
@@ -14,6 +14,7 @@ export async function bootstrapIndexPage() {
   const tabsTable = createTabsTable(state, {
     onAttachTag: (tab) => tagManager?.openAttachModal(tab),
     onEditTab: (tab) => openEditTabModal(tab),
+    onSyncTab: (tab) => openTabSyncModal(tab, { onTabsChanged: () => tabsTable.render() }),
   });
 
   tagManager = createTagManager(state, {
