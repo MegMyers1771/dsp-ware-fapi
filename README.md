@@ -14,3 +14,9 @@ RQ_REDIS_URL=redis://localhost:6379/0 rq worker sync
 ```
 
 При необходимости можно задать название очереди (`RQ_QUEUE_NAME`) и таймаут (`RQ_DEFAULT_TIMEOUT`).
+
+
+## Перед использованием
+- SPREADSHEET_ID актуальной таблицы
+- Сгенерировать credentials на google cloud
+- расшарить сервис аккаунт на используемую таблицу
