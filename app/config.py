@@ -20,8 +20,7 @@ def _normalize_api_url(raw: str | None, default: str) -> str:
 DATABASE_URL = os.getenv("DATABASE_URL")
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
 
-_api_default = "http://localhost:7878"
-DEFAULT_API_URL = _normalize_api_url(os.getenv("API_UPSTREAM") or os.getenv("API_URL"), _api_default)
+DEFAULT_API_URL = _normalize_api_url(os.getenv("API_URL") or os.getenv("API_UPSTREAM"), "localhost:7878")
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-change-me")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
