@@ -26,22 +26,22 @@ services:
     volumes:
       - historydata:/app/data
 
-  nginx:
-    image: nginx:1.25
-    container_name: dsp-ware-nginx
-    restart: unless-stopped
-    depends_on:
-      - api
-    env_file:
-      - .env
-    environment:
-      NGINX_SERVER_NAME: ${NGINX_SERVER_NAME:-example.com}
-      API_UPSTREAM: ${API_UPSTREAM:-http://api:7878}
-    volumes:
-      - ./nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
-    ports:
-      - "80:80"
-    command: ["/bin/sh", "-c", "envsubst '$$NGINX_SERVER_NAME $$API_UPSTREAM' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && exec nginx -g 'daemon off;'"]
+  # nginx:
+  #   image: nginx:1.25
+  #   container_name: dsp-ware-nginx
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - api
+  #   env_file:
+  #     - .env
+  #   environment:
+  #     NGINX_SERVER_NAME: ${NGINX_SERVER_NAME:-example.com}
+  #     API_UPSTREAM: ${API_UPSTREAM:-http://api:7878}
+  #   volumes:
+  #     - ./nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+  #   ports:
+  #     - "80:80"
+  #   command: ["/bin/sh", "-c", "envsubst '$$NGINX_SERVER_NAME $$API_UPSTREAM' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && exec nginx -g 'daemon off;'"]
 
   worker:
     build: .
