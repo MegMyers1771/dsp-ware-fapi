@@ -3,6 +3,7 @@ import {
   createTabField as apiCreateTabField,
   deleteTabField as apiDeleteTabField,
   fetchParserEnv,
+  fetchSyncWorkerStatus,
   fetchTabSyncSettings,
   getBoxes,
   getItemsByBox,
@@ -27,6 +28,9 @@ const syncModalState = {
   tabNameEl: null,
   currentTab: null,
   onTabsChanged: null,
+  workerWarningEl: null,
+  workerOnline: null,
+  workerAlertShown: false,
 };
 
 export function initTabActions({ onTabsChanged }) {
@@ -216,12 +220,17 @@ export async function openTabSyncModal(tab, { onTabsChanged } = {}) {
   syncModalState.configSelect?.classList.remove("is-invalid");
 
   try {
-    const [settings, env, configs] = await Promise.all([
+    const [settings, env, configs, workerStatus] = await Promise.all([
       fetchTabSyncSettings(tab.id),
       fetchParserEnv(),
       listParserConfigs(),
+      fetchSyncWorkerStatus().catch((err) => {
+        console.warn("Не удалось проверить статус воркера синхронизации", err);
+        return null;
+      }),
     ]);
     renderSyncConfigOptions(configs, settings.config_name);
+    updateSyncWorkerWarning(workerStatus?.rq_worker_online);
     if (syncModalState.enableSwitch) {
       syncModalState.enableSwitch.checked = !!settings.enable_sync;
     }
@@ -311,6 +320,7 @@ function initSyncModal(onTabsChanged) {
   syncModalState.spreadsheetInput = document.getElementById("tabSyncSpreadsheetId");
   syncModalState.submitBtn = document.getElementById("tabSyncSubmit");
   syncModalState.tabNameEl = document.getElementById("tabSyncTabName");
+  syncModalState.workerWarningEl = document.getElementById("tabSyncWorkerWarning");
   syncModalState.form?.addEventListener("submit", handleTabSyncSubmit);
 }
 
@@ -339,6 +349,13 @@ async function handleTabSyncSubmit(event) {
     return;
   }
   syncModalState.configSelect?.classList.remove("is-invalid");
+  if (enableSync && syncModalState.workerOnline === false) {
+    showTopAlert(
+      "Воркер Redis для синхронизации не запущен — операции будут завершаться ошибкой, пока он не будет запущен.",
+      "warning",
+      7000
+    );
+  }
   const spreadsheetId = (syncModalState.spreadsheetInput?.value || "").trim();
   const initialId = syncModalState.spreadsheetInput?.dataset.initialValue || "";
 
@@ -364,8 +381,29 @@ async function handleTabSyncSubmit(event) {
     await syncModalState.onTabsChanged?.();
   } catch (err) {
     console.error("Ошибка сохранения синхронизации", err);
-    showTopAlert(err?.message || "Не удалось сохранить синхронизацию", "danger");
+    const suffix =
+      syncModalState.workerOnline === false
+        ? " Убедитесь, что запущен Redis воркер (например, `rq worker sync`)."
+        : "";
+    showTopAlert((err?.message || "Не удалось сохранить синхронизацию") + suffix, "danger");
   } finally {
     syncModalState.submitBtn?.removeAttribute("disabled");
+  }
+}
+
+function updateSyncWorkerWarning(isOnline) {
+  const normalized = !!isOnline;
+  syncModalState.workerOnline = normalized;
+  const warningEl = syncModalState.workerWarningEl;
+  if (warningEl) {
+    if (normalized) {
+      warningEl.classList.add("d-none");
+    } else {
+      warningEl.classList.remove("d-none");
+    }
+  }
+  if (!normalized && !syncModalState.workerAlertShown) {
+    showTopAlert("Воркер Redis для синхронизации не запущен — операции будут завершаться ошибкой.", "warning", 7000);
+    syncModalState.workerAlertShown = true;
   }
 }

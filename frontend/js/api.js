@@ -1,4 +1,5 @@
 import { getAuthToken } from "./common/authStore.js";
+import { notifyApiRequestEnd, notifyApiRequestStart } from "./common/apiSpinner.js";
 
 const globalConfig =
   typeof window !== "undefined" && window.__APP_CONFIG ? window.__APP_CONFIG : {};
@@ -18,12 +19,19 @@ function buildHeaders(headers = {}, body) {
 }
 
 async function authFetch(url, { headers, body, ...rest } = {}) {
-  const response = await fetch(url, {
-    ...rest,
-    headers: buildHeaders(headers, body),
-    body,
-  });
-  return response;
+  notifyApiRequestStart();
+  try {
+    const response = await fetch(url, {
+      ...rest,
+      headers: buildHeaders(headers, body),
+      body,
+    });
+    notifyApiRequestEnd(response?.status);
+    return response;
+  } catch (err) {
+    notifyApiRequestEnd();
+    throw err;
+  }
 }
 
 
@@ -32,6 +40,12 @@ export async function getItemsByBox(boxId) {
   if (!res.ok) {
     throw new Error("Не удалось получить список айтемов");
   }
+  return await res.json();
+}
+
+export async function fetchSyncWorkerStatus() {
+  const res = await authFetch(`${API_URL}/system/sync-worker`);
+  if (!res.ok) throw new Error("Не удалось получить статус воркера синхронизации");
   return await res.json();
 }
 
@@ -198,12 +212,17 @@ export async function addItem(tabId, boxId, name, qty, metadata_json) {
     const text = await res.text();
     throw new Error(text || "Не удалось добавить айтем");
   }
+  return await res.json();
 }
 
-export async function searchItems(tabId, query) {
-  const res = await authFetch(
-    `${API_URL}/items/search?tab_id=${tabId}&query=${encodeURIComponent(query)}&limit=100`
-  );
+export async function searchItems(tabId, query, options = {}) {
+  const params = new URLSearchParams({
+    tab_id: String(tabId),
+    query: String(query),
+    limit: "100",
+  });
+  if (options.tag_id) params.set("tag_id", String(options.tag_id));
+  const res = await authFetch(`${API_URL}/items/search?${params.toString()}`);
 
   if (!res.ok) {
     console.error("Search request failed:", res.status);
@@ -502,13 +521,44 @@ export async function deleteStatus(statusId) {
 }
 
 // ---- Issues ----
-export async function fetchIssues() {
-  const res = await authFetch(`${API_URL}/issues`);
+export async function fetchIssues(filters = {}) {
+  const params = new URLSearchParams();
+  if (filters.page) params.set("page", String(filters.page));
+  if (filters.per_page) params.set("per_page", String(filters.per_page));
+  if (filters.status_id) params.set("status_id", String(filters.status_id));
+  if (filters.responsible) params.set("responsible", filters.responsible);
+  if (filters.serial) params.set("serial", filters.serial);
+  if (filters.invoice) params.set("invoice", filters.invoice);
+  if (filters.item) params.set("item", filters.item);
+  if (filters.tab) params.set("tab", filters.tab);
+  if (filters.box) params.set("box", filters.box);
+  if (filters.created_from) params.set("created_from", filters.created_from);
+  if (filters.created_to) params.set("created_to", filters.created_to);
+  const qs = params.toString();
+  const res = await authFetch(`${API_URL}/issues${qs ? `?${qs}` : ""}`);
   if (!res.ok) {
     const text = await res.text();
     throw new Error(text || "Не удалось загрузить историю выдачи");
   }
-  return await res.json();
+  const data = await res.json();
+  if (Array.isArray(data)) {
+    return { items: data, total: data.length };
+  }
+  const items = Array.isArray(data?.items) ? data.items : [];
+  const total = typeof data?.total === "number" ? data.total : items.length;
+  return { items, total };
+}
+
+export async function downloadIssuesXlsx() {
+  const res = await authFetch(`${API_URL}/issues/export`, { method: "GET" });
+  if (res.status === 404) {
+    throw new Error("Файл истории ещё не создан");
+  }
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Не удалось скачать историю");
+  }
+  return await res.blob();
 }
 
 // ---- Auth & Users ----

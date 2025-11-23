@@ -10,6 +10,17 @@
 <body>
   <nav class="navbar navbar-expand-lg bg-dark" data-bs-theme="dark">
     <div class="container-fluid">
+      <div class="d-flex align-items-center me-3">
+        <div
+          id="apiStatusSpinner"
+          class="spinner-border spinner-border-sm text-body-secondary opacity-75"
+          role="status"
+          aria-live="polite"
+          aria-label="Статус API"
+        >
+          <span class="visually-hidden">Загрузка данных</span>
+        </div>
+      </div>
       <a class="navbar-brand" href="/">DSP-Ware_alpha</a>
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarHistory" aria-controls="navbarHistory" aria-expanded="false" aria-label="Toggle navigation">
         <span class="navbar-toggler-icon"></span>
@@ -32,9 +43,58 @@
   </nav>
 
   <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
       <h2 class="mb-0">История выдачи</h2>
-      <span class="text-muted small">Показываются последние перемещения</span>
+      <div class="d-flex align-items-center gap-2">
+        <span class="text-muted small">Показываются последние перемещения</span>
+        <button id="issueHistoryDownload" class="btn btn-outline-success btn-sm" type="button">Скачать XLSX</button>
+      </div>
+    </div>
+    <div class="card card-body border-0 shadow-sm mb-3">
+      <form id="issueHistoryFilters" class="row g-3 align-items-end">
+        <div class="col-12 col-md-3 col-lg-2">
+          <label class="form-label" for="historyFilterStatus">Статус</label>
+          <select id="historyFilterStatus" class="form-select form-select-sm">
+            <option value="">Все</option>
+          </select>
+        </div>
+        <div class="col-12 col-md-3 col-lg-2">
+          <label class="form-label" for="historyFilterResponsible">Ответственный</label>
+          <input type="text" id="historyFilterResponsible" class="form-control form-control-sm" placeholder="user_name" />
+        </div>
+        <div class="col-12 col-md-3 col-lg-2">
+          <label class="form-label" for="historyFilterSerial">Серийный номер</label>
+          <input type="text" id="historyFilterSerial" class="form-control form-control-sm" placeholder="SN..." />
+        </div>
+        <div class="col-12 col-md-3 col-lg-2">
+          <label class="form-label" for="historyFilterInvoice">Номер счёта</label>
+          <input type="text" id="historyFilterInvoice" class="form-control form-control-sm" placeholder="Invoice..." />
+        </div>
+        <div class="col-12 col-md-4 col-lg-3">
+          <label class="form-label" for="historyFilterItem">Айтем</label>
+          <input type="text" id="historyFilterItem" class="form-control form-control-sm" placeholder="Название айтема" />
+        </div>
+        <div class="col-12 col-md-4 col-lg-3">
+          <label class="form-label" for="historyFilterTab">Вкладка</label>
+          <input type="text" id="historyFilterTab" class="form-control form-control-sm" placeholder="Имя вкладки" />
+        </div>
+        <div class="col-12 col-md-4 col-lg-3">
+          <label class="form-label" for="historyFilterBox">Ящик</label>
+          <input type="text" id="historyFilterBox" class="form-control form-control-sm" placeholder="Имя ящика" />
+        </div>
+        <div class="col-12 col-md-6 col-lg-3">
+          <label class="form-label" for="historyFilterCreatedFrom">Создано с</label>
+          <input type="datetime-local" id="historyFilterCreatedFrom" class="form-control form-control-sm" />
+        </div>
+        <div class="col-12 col-md-6 col-lg-3">
+          <label class="form-label" for="historyFilterCreatedTo">Создано до</label>
+          <input type="datetime-local" id="historyFilterCreatedTo" class="form-control form-control-sm" />
+        </div>
+        <div class="col-12 col-lg-3 ms-auto d-flex gap-2 justify-content-end">
+          <button type="submit" class="btn btn-primary btn-sm px-3">Найти</button>
+          <button type="reset" class="btn btn-outline-secondary btn-sm px-3">Сброс</button>
+        </div>
+      </form>
     </div>
     <div id="issueHistoryEmpty" class="alert alert-secondary">Загрузка...</div>
     <div class="table-responsive">
@@ -52,6 +112,20 @@
         </thead>
         <tbody></tbody>
       </table>
+    </div>
+    <div id="historyPagination" class="d-flex flex-wrap align-items-center justify-content-between gap-3 py-3">
+      <div class="d-flex align-items-center gap-2">
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="historyPrevPage" disabled>Назад</button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="historyNextPage" disabled>Вперёд</button>
+      </div>
+      <div class="text-muted small">
+        Страница <span id="historyPageCurrent">1</span> / <span id="historyPageTotal">1</span> —
+        <span id="historyPageRange">0-0</span> из <span id="historyTotalCount">0</span>
+      </div>
+      <div class="d-flex align-items-center gap-2">
+        <label class="form-label mb-0" for="historyPageSize">На странице</label>
+        <select id="historyPageSize" class="form-select form-select-sm" style="width:auto;"></select>
+      </div>
     </div>
   </div>
 
@@ -72,7 +146,7 @@
                 name="user_name"
                 class="form-control"
                 required
-                pattern="^[A-Za-z0-9_-]+$"
+                pattern="^[A-Za-z0-9_\-]+$"
                 maxlength="50"
                 placeholder="user_name"
               />
@@ -107,7 +181,7 @@
                 name="newUserName"
                 class="form-control"
                 required
-                pattern="^[A-Za-z0-9_-]+$"
+                pattern="^[A-Za-z0-9_\-]+$"
                 maxlength="50"
                 placeholder="new_user"
               />

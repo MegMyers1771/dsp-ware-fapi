@@ -2,33 +2,33 @@
 
 
 /* Buttons */
-.btn-primary{
+/* .btn-primary{
   background: var(--primary);
   border-color: var(--primary-600);
   color: #fff;
-}
-.btn-primary:hover{ background: var(--primary-600); }
+} */
+/* .btn-primary:hover{ background: var(--primary-600); }
 .btn-outline-primary{
   color: var(--primary);
   border-color: rgba(124,58,237,0.25);
 }
-.btn-outline-secondary{ color:var(--muted); border-color: rgba(255,255,255,0.04); }
+.btn-outline-secondary{ color:var(--muted); border-color: rgba(255,255,255,0.04); } */
 
 /* Form controls */
-.form-control{
+/* .form-control{
   background: rgba(255,255,255,0.03);
   color:var(--text);
   border: 1px solid rgba(255,255,255,0.04);
 }
 .form-control::placeholder{ color: rgba(230,238,248,0.45); }
-.form-select{ background: rgba(255,255,255,0.03); color:var(--text); }
+.form-select{ background: rgba(255,255,255,0.03); color:var(--text); } */
 
 /* Modals */
-.modal-content{ box-shadow: 0 10px 30px rgba(2,6,23,0.7); }
-.modal-backdrop.show{ background: rgba(3,6,23,0.6); }
+/* .modal-content{ box-shadow: 0 10px 30px rgba(2,6,23,0.7); }
+.modal-backdrop.show{ background: rgba(3,6,23,0.6); } */
 
 /* Table / list items */
-.bg-white, .bg-light{ background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); color:var(--text); }
+/* .bg-white, .bg-light{ background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); color:var(--text); } */
 
 /* Alerts / toasts */
 /* .toast{ box-shadow: 0 6px 20px rgba(2,6,23,0.6); } */
@@ -47,13 +47,13 @@ label, .form-label, h5, h6{ color: var(--text); }
 a, small{ color: var(--muted); }
 
 /* highlighted item style (used by JS) */
-[data-item-id].highlighted{ background: #fff3bf; border-color: #ffc107; }
+/* [data-item-id].highlighted{ background: #fff3bf; border-color: #ffc107; } */
 
 /* responsive safe spacing for top alert */
 #topAlert{ max-width: 90%; }
 
 /* Box modal + scrolling tables */
-.box-modal-dialog{
+/* .box-modal-dialog{
   max-width:65%;
   max-height:65%;
   margin:1.75rem auto;
@@ -78,9 +78,9 @@ a, small{ color: var(--muted); }
   color:#fff;
   border:1px solid #df2fdf;
   border-radius:10px;
-}
-.box-modal-content .modal-header{ position:relative; }
-.box-modal-content.expanded{ border-radius:8px; }
+} */
+/* .box-modal-content .modal-header{ position:relative; }
+.box-modal-content.expanded{ border-radius:8px; } */
 .box-view-toggle{
   border-radius:50%;
   width:36px;

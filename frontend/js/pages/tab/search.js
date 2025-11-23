@@ -4,7 +4,7 @@ import { showTopAlert } from "../../common/alerts.js";
 
 export async function handleSearch(state, query, filters = {}, { openBox }) {
   state.lastSearchQuery = query;
-  const response = await searchItems(state.tabId, query);
+  const response = await searchItems(state.tabId, query, { tag_id: filters?.tag_id });
   const results = response.results || [];
   const container = getSearchResultsContainer(state);
   if (!container) return;
@@ -29,6 +29,7 @@ export function setupSearchFilters(
     modalEl = document.getElementById("searchFiltersModal"),
     formEl = document.getElementById("searchFiltersForm"),
     fieldsContainer = document.getElementById("searchFiltersFields"),
+    tagSelect = document.getElementById("searchFilterTag"),
     resetBtn = document.getElementById("searchFiltersResetBtn"),
     onFiltersChanged,
   } = {}
@@ -36,6 +37,26 @@ export function setupSearchFilters(
   if (!modalEl || !formEl || !fieldsContainer) return null;
   const modal = new bootstrap.Modal(modalEl);
   let cachedFields = null;
+
+  const ensureTags = async () => {
+    if (!tagSelect) return;
+    if (!state.tagStore.isLoaded()) {
+      try {
+        await state.tagStore.refresh();
+      } catch (err) {
+        console.warn("Не удалось загрузить теги для фильтра", err);
+      }
+    }
+    const tags = state.tagStore.getAll() || [];
+    tagSelect.innerHTML = `<option value="">Все</option>`;
+    tags.forEach((tag) => {
+      const option = document.createElement("option");
+      option.value = String(tag.id);
+      option.textContent = tag.name || `Тэг #${tag.id}`;
+      option.style.backgroundColor = tag.color || "";
+      tagSelect.appendChild(option);
+    });
+  };
 
   const loadFields = async () => {
     if (cachedFields) return cachedFields;
@@ -77,6 +98,9 @@ export function setupSearchFilters(
 
   const applyStoredValues = () => {
     const filters = state.searchFilters || {};
+    if (tagSelect) {
+      tagSelect.value = filters.tag_id ? String(filters.tag_id) : "";
+    }
     fieldsContainer.querySelectorAll("[data-filter-field]").forEach((input) => {
       const key = input.dataset.filterField;
       input.value = filters?.[key] ?? "";
@@ -85,6 +109,12 @@ export function setupSearchFilters(
 
   const collectValues = () => {
     const payload = {};
+    if (tagSelect && tagSelect.value) {
+      const id = Number(tagSelect.value);
+      if (Number.isFinite(id)) {
+        payload.tag_id = id;
+      }
+    }
     fieldsContainer.querySelectorAll("[data-filter-field]").forEach((input) => {
       const name = input.dataset.filterField;
       const value = input.value.trim();
@@ -96,6 +126,7 @@ export function setupSearchFilters(
   };
 
   const open = async () => {
+    await ensureTags();
     const fields = await loadFields();
     renderFields(fields);
     applyStoredValues();
@@ -111,6 +142,9 @@ export function setupSearchFilters(
 
   resetBtn?.addEventListener("click", async () => {
     state.searchFilters = {};
+    if (tagSelect) {
+      tagSelect.value = "";
+    }
     fieldsContainer.querySelectorAll("[data-filter-field]").forEach((input) => {
       input.value = "";
     });
@@ -143,22 +177,27 @@ function groupSearchResults(results = []) {
 }
 
 function filterSearchResults(results = [], filters = {}) {
+  const tagId = Number(filters.tag_id);
   const activeFilters = Object.entries(filters || {})
-    .map(([field, value]) => [field, typeof value === "string" ? value.trim() : ""])
-    .filter(([, value]) => value);
+    .map(([field, value]) => [field, typeof value === "string" ? value.trim() : value])
+    .filter(([field, value]) => field !== "tag_id" && !!value);
 
-  if (!activeFilters.length) {
+  if (!activeFilters.length && !Number.isFinite(tagId)) {
     return results;
   }
 
   return results.filter((item) => {
+    if (Number.isFinite(tagId)) {
+      const tagIds = Array.isArray(item.tag_ids) ? item.tag_ids.map((id) => Number(id)) : [];
+      if (!tagIds.includes(tagId)) return false;
+    }
     const metadata = item.metadata || {};
     return activeFilters.every(([fieldName, expected]) => {
       const actual = metadata[fieldName];
       if (actual === undefined || actual === null) {
         return false;
       }
-      return String(actual).toLowerCase().includes(expected.toLowerCase());
+      return String(actual).toLowerCase().includes(String(expected).toLowerCase());
     });
   });
 }

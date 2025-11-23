@@ -8,18 +8,22 @@ import {
   reorderItems,
   updateItem,
   fetchStatuses,
+  addItem,
 } from "../../api.js";
 import { showTopAlert, showBottomToast } from "../../common/alerts.js";
 import { escapeHtml } from "../../common/dom.js";
 import { renderTagFillCell } from "../../common/tagTemplates.js";
-import { getDefaultItemFormMode } from "./state.js";
+import { getDefaultItemFormMode, DEFAULT_BOXES_PAGE_SIZE } from "./state.js";
 import { getCurrentUser } from "../../common/authControls.js";
+import { createPaginationController } from "../../common/pagination.js";
 import {
   setupBoxTableScrollSync,
   toggleBoxModalShift,
   setupBoxModalResizeToggle,
 } from "./uiHelpers.js";
 import { handleSearch, setupSearchFilters } from "./search.js";
+
+const BOXES_PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
 
 function formatMetadataDisplay(value) {
   if (value === undefined || value === null) {
@@ -111,6 +115,32 @@ export function createBoxesController(state, elements) {
   state.ui.searchFiltersController = filtersController;
   state.ui.searchResultsEl = elements.searchResultsContainer ?? document.getElementById("searchResults");
 
+  const boxesPagination = createPaginationController({
+    elements: {
+      container: document.getElementById("boxesPagination"),
+      prevBtn: document.getElementById("boxesPrevPage"),
+      nextBtn: document.getElementById("boxesNextPage"),
+      pageLabel: document.getElementById("boxesPageCurrent"),
+      totalLabel: document.getElementById("boxesPageTotal"),
+      rangeLabel: document.getElementById("boxesPageRange"),
+      totalCountLabel: document.getElementById("boxesTotalCount"),
+      pageSizeSelect: document.getElementById("boxesPageSize"),
+    },
+    defaultPageSize: DEFAULT_BOXES_PAGE_SIZE,
+    pageSizeOptions: BOXES_PAGE_SIZE_OPTIONS,
+    onChange: async ({ page, perPage }) => {
+      state.boxesPagination = { page, perPage };
+      await renderBoxes(state, tagManagerApi, { skipFetch: true });
+    },
+  });
+  if (boxesPagination) {
+    state.ui.boxesPaginationController = boxesPagination;
+    state.boxesPagination = {
+      page: boxesPagination.state.page,
+      perPage: boxesPagination.state.perPage,
+    };
+  }
+
   return {
     registerTagManager(api) {
       tagManagerApi = api;
@@ -135,14 +165,21 @@ export function createBoxesController(state, elements) {
   };
 }
 
-async function renderBoxes(state, tagManagerApi) {
-  const boxes = await getBoxes(state.tabId);
-  state.boxesById = new Map((boxes || []).map((box) => [Number(box.id), box]));
-  try {
-    await state.tagStore.refresh();
-  } catch (err) {
-    console.warn("Не удалось обновить кэш тэгов для боксов", err);
+async function renderBoxes(state, tagManagerApi, options = {}) {
+  const { skipFetch = false } = options || {};
+  let boxes = Array.isArray(state.boxesData) ? state.boxesData : [];
+  if (!skipFetch || !boxes.length) {
+    boxes = await getBoxes(state.tabId);
+    state.boxesData = boxes;
+    try {
+      await state.tagStore.refresh();
+    } catch (err) {
+      console.warn("Не удалось обновить кэш тэгов для боксов", err);
+    }
+  } else if (!Array.isArray(boxes)) {
+    boxes = [];
   }
+  state.boxesById = new Map((boxes || []).map((box) => [Number(box.id), box]));
 
   const container = document.getElementById("boxesTableContainer");
   let tbody = container?.querySelector("#boxesTableBody") || document.getElementById("boxesTableBody");
@@ -151,7 +188,7 @@ async function renderBoxes(state, tagManagerApi) {
       <table id="boxesTable" class="table table-hover table-striped mb-0">
         <thead class="table-dark">
           <tr>
-            <th style="width:80px">ID</th>
+            
             <th style="width:140px" class="text-center">Тэги</th>
             <th>Название</th>
             <th>Описание</th>
@@ -168,17 +205,35 @@ async function renderBoxes(state, tagManagerApi) {
   if (!tbody) return;
   tbody.innerHTML = "";
 
-  if (!boxes || boxes.length === 0) {
+  if (!state.boxesPagination) {
+    state.boxesPagination = { page: 1, perPage: DEFAULT_BOXES_PAGE_SIZE };
+  }
+  const perPage = Math.max(Number(state.boxesPagination.perPage) || DEFAULT_BOXES_PAGE_SIZE, 1);
+  const totalBoxes = boxes?.length || 0;
+  const totalPages = Math.max(1, Math.ceil(totalBoxes / perPage));
+  state.boxesPagination.page = Math.min(Math.max(1, state.boxesPagination.page || 1), totalPages);
+  const currentPage = state.boxesPagination.page;
+  const startIndex = (currentPage - 1) * perPage;
+  const visibleBoxes = boxes.slice(startIndex, startIndex + perPage);
+
+  if (!visibleBoxes || visibleBoxes.length === 0) {
     tbody.innerHTML = `<tr><td colspan="6" class="text-muted">Ящиков нет</td></tr>`;
+    updateBoxesPaginationUi(state, {
+      page: currentPage,
+      totalPages,
+      totalBoxes,
+      startIndex,
+      visibleCount: 0,
+    });
     return;
   }
 
-  boxes.forEach((box) => {
+  visibleBoxes.forEach((box) => {
     const tr = document.createElement("tr");
     tr.dataset.boxId = box.id;
 
     tr.innerHTML = `
-      <td>${escapeHtml(box.id)}</td>
+      
       <td class="tag-fill-cell">${renderTagFillCell(box.tag_ids, { tagLookup: state.tagStore.getById, emptyText: "Нет" })}</td>
       <td>${escapeHtml(box.name)}</td>
       <td>${escapeHtml(box.description)}</td>
@@ -212,6 +267,13 @@ async function renderBoxes(state, tagManagerApi) {
     });
 
     tbody.appendChild(tr);
+  });
+  updateBoxesPaginationUi(state, {
+    page: currentPage,
+    totalPages,
+    totalBoxes,
+    startIndex,
+    visibleCount: visibleBoxes.length,
   });
 }
 
@@ -260,7 +322,10 @@ async function openBoxModal(state, tagManagerApi, boxId, highlightItems = null, 
 
     const esc = (value) => escapeHtml(value);
     const minWidth = Math.max(600, headers.length * 160);
-    const totalItems = items.length;
+    const totalQuantity = items.reduce(
+      (acc, current) => acc + (typeof current.qty === "number" && current.qty > 0 ? current.qty : 1),
+      0
+    );
 
     const tableHtml = `
       <div class="box-table-scroll">
@@ -282,8 +347,13 @@ async function openBoxModal(state, tagManagerApi, boxId, highlightItems = null, 
             ${items
               .map((item, index) => {
                 const cells = [];
+                const qtyValue = typeof item.qty === "number" && item.qty > 0 ? item.qty : 1;
                 const fromStart = typeof item.box_position === "number" ? item.box_position : null;
-                const fromEnd = typeof item.box_position === "number" ? totalItems - item.box_position + 1 : null;
+                const lastPosition = fromStart !== null ? fromStart + qtyValue - 1 : null;
+                const fromEnd =
+                  lastPosition !== null && totalQuantity > 0
+                    ? totalQuantity - lastPosition + 1
+                    : null;
                 const posLabel = state.currentTabEnablePos
                   ? fromStart !== null && fromEnd !== null
                     ? `${fromStart} (${fromEnd})`
@@ -425,6 +495,11 @@ async function openBoxModal(state, tagManagerApi, boxId, highlightItems = null, 
   if (!modalEl) return;
   const modal = new bootstrap.Modal(modalEl, { backdrop: false, focus: false });
   modalEl.addEventListener("shown.bs.modal", () => setupBoxModalResizeToggle(state));
+  const modalTitleEl = modalEl.querySelector(".modal-title");
+  if (modalTitleEl) {
+    const title = targetBox?.name ? `Содержимое ящика ${targetBox.name}` : "Содержимое ящика";
+    modalTitleEl.textContent = title;
+  }
 
   modalEl.addEventListener(
     "hidden.bs.modal",
@@ -658,7 +733,7 @@ function setupIssueOffcanvas(state, { onIssued } = {}) {
     const invoiceNumber = invoiceInput?.value.trim();
     submitBtn?.setAttribute("disabled", "disabled");
     try {
-      await issueInventoryItem(pendingContext.item.id, {
+      const issueResult = await issueInventoryItem(pendingContext.item.id, {
         status_id: statusId,
         responsible_user_name: responsible,
         qty: requestedQty,
@@ -667,12 +742,21 @@ function setupIssueOffcanvas(state, { onIssued } = {}) {
       });
       window.localStorage?.setItem("issueStatusId", String(statusId));
       showTopAlert("Айтем выдан", "success");
+      if (issueResult?.sync_result) {
+        announceSyncEvent(
+          state,
+          "обновлена",
+          pendingContext.box,
+          pendingContext.item?.name,
+          issueResult.sync_result
+        );
+      }
       const context = pendingContext;
       pendingContext = null;
       instance.hide();
       await onIssued?.({ boxId: context?.box?.id, itemId: context?.item?.id });
     } catch (err) {
-      console.error("Issue error", err);
+      console.error("Issue error", err.detail || err);
       showTopAlert(err?.message || "Ошибка при выдаче айтема", "danger");
     } finally {
       submitBtn?.removeAttribute("disabled");
@@ -887,59 +971,55 @@ async function handleItemFormSubmit(event, state, getTagManager) {
   let highlightId = null;
   let createdItem = null;
 
-  if (mode === "edit" && state.itemFormMode?.itemId) {
-    const payload = {
-      name,
-      qty: qtyValue,
-      position: state.itemFormMode?.position ?? 1,
-      metadata_json,
-      tag_ids: state.itemFormMode?.tagIds ?? [],
-      box_id: boxId,
-    };
+    if (mode === "edit" && state.itemFormMode?.itemId) {
+      const payload = {
+        name,
+        qty: qtyValue,
+        position: state.itemFormMode?.position ?? 1,
+        metadata_json,
+        tag_ids: state.itemFormMode?.tagIds ?? [],
+        box_id: boxId,
+      };
 
-    try {
-      await updateItem(state.itemFormMode.itemId, payload);
-      highlightId = state.itemFormMode.itemId;
-      showTopAlert("Айтем обновлён", "success");
-      notifySheetEvent("обновлена", state.boxesById.get(Number(boxId)), name);
-      state.ui.addItemOffcanvasInstance?.hide();
-    } catch (err) {
-      console.error("Ошибка обновления айтема:", err);
-      showTopAlert(err?.message || "Не удалось обновить айтем", "danger");
-      return;
+      let updateResult = null;
+      try {
+        updateResult = await updateItem(state.itemFormMode.itemId, payload);
+        highlightId = state.itemFormMode.itemId;
+        showTopAlert("Айтем обновлён", "success");
+        announceSyncEvent(
+          state,
+          "обновлена",
+          state.boxesById.get(Number(boxId)),
+          name,
+          updateResult?.sync_result
+        );
+        state.ui.addItemOffcanvasInstance?.hide();
+      } catch (err) {
+        console.error("Ошибка обновления айтема:", err);
+        showTopAlert(err?.message || "Не удалось обновить айтем", "danger");
+        return;
     }
   } else {
     if (Number.isNaN(tabId)) {
       return showTopAlert("Не указана вкладка для айтема", "danger");
     }
 
-    const payload = {
-      name,
-      qty: qtyValue,
-      position: 1,
-      metadata_json,
-      tag_ids: [],
-      tab_id: tabId,
-      box_id: boxId,
-    };
-
-    const res = await fetch(`${API_URL}/items`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    if (!res.ok) {
-      const text = await res.text();
-      console.error("Ошибка добавления:", text);
-      showTopAlert("Ошибка при добавлении", "danger");
+    try {
+      createdItem = await addItem(tabId, boxId, name, qtyValue, metadata_json);
+      showTopAlert("Айтем добавлен", "success");
+      announceSyncEvent(
+        state,
+        "создана",
+        state.boxesById.get(Number(boxId)),
+        name,
+        createdItem?.sync_result
+      );
+    } catch (err) {
+      console.error("Ошибка добавления:", err);
+      showTopAlert(err?.message || "Ошибка при добавлении", "danger");
       return;
     }
-
-    createdItem = await res.json().catch(() => null);
     highlightId = createdItem?.id || null;
-    showTopAlert("Айтем добавлен", "success");
-    notifySheetEvent("создана", state.boxesById.get(Number(boxId)), name);
     nameInput.value = "";
     if (qtyInput) {
       qtyInput.value = "1";
@@ -1005,12 +1085,57 @@ function ensureIssueFormRefs(state) {
   return state.ui.issueRefs;
 }
 
+function announceSyncEvent(state, action, box, itemName, syncResult = null) {
+  if (!syncResult || !syncResult.status) {
+    return;
+  }
+  const status = syncResult?.status;
+  const detail = syncResult?.detail;
+  if (status === "error") {
+    showTopAlert(detail || "Не удалось синхронизировать изменения с Google Sheets", "danger", 8000);
+    return;
+  }
+  if (status === "success") {
+    const message = detail || null;
+    if (message) {
+      showBottomToast(message, { title: "Синхронизация", delay: 6000 });
+    } else {
+      notifySheetEvent(action, box, itemName);
+    }
+    return;
+  }
+  if (state?.syncWorkerOnline === false) {
+    if (!state.syncWorkerWarningShown) {
+      showTopAlert(
+        "Синхронизация недоступна: запустите Redis воркер (например, `rq worker sync`).",
+        "warning",
+        6000
+      );
+      state.syncWorkerWarningShown = true;
+    }
+    return;
+  }
+  notifySheetEvent(action, box, itemName);
+}
+
 function notifySheetEvent(action, box, itemName) {
   if (!action) return;
   const boxLabel = box?.name || (box?.id ? `Ящик #${box.id}` : "Ящик");
   const safeItem = itemName || "Без названия";
   const message = `Строка в Google Sheets — ${action} — ${boxLabel} — ${safeItem}`;
   showBottomToast(message, { title: "Синхронизация", delay: 6000 });
+}
+
+function updateBoxesPaginationUi(state, stats) {
+  const controller = state.ui?.boxesPaginationController;
+  if (!controller) return;
+  const perPage = Math.max(state.boxesPagination?.perPage || DEFAULT_BOXES_PAGE_SIZE, 1);
+  controller.updateUi({
+    totalItems: stats.totalBoxes || 0,
+    visibleCount: stats.visibleCount || 0,
+    page: stats.page || controller.state.page,
+    perPage,
+  });
 }
 
 function setItemFormMode(state, overrides = {}) {

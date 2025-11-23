@@ -1,11 +1,14 @@
 import { createTagStore } from "../../common/tagStore.js";
 import { fetchTags } from "../../api.js";
 
+export const DEFAULT_BOXES_PAGE_SIZE = 5;
+
 export function createTabState(tabId) {
   return {
     tabId: Number(tabId),
     tagStore: createTagStore(fetchTags),
     boxesById: new Map(),
+    boxesData: [],
     latestTabsSnapshot: [],
     currentBoxViewBoxId: null,
     currentTabEnablePos: true,
@@ -14,6 +17,12 @@ export function createTabState(tabId) {
     searchFilters: {},
     lastSearchQuery: "",
     pendingDeleteTagId: null,
+    boxesPagination: {
+      page: 1,
+      perPage: DEFAULT_BOXES_PAGE_SIZE,
+    },
+    syncWorkerOnline: null,
+    syncWorkerWarningShown: false,
     contexts: {
       attachBox: null,
       attachItem: null,
@@ -58,6 +67,16 @@ export function createTabState(tabId) {
       deleteTagBindingsEl: null,
       deleteTagConfirmBtn: null,
       searchResultsEl: null,
+      boxesPagination: {
+        container: null,
+        prevBtn: null,
+        nextBtn: null,
+        pageLabel: null,
+        totalLabel: null,
+        rangeLabel: null,
+        totalCountLabel: null,
+        pageSizeSelect: null,
+      },
     },
   };
 }

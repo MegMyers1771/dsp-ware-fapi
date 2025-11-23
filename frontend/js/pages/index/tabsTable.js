@@ -15,7 +15,7 @@ export function createTabsTable(state, { onAttachTag, onEditTab, onSyncTab } = {
         <table id="tabsTable" class="table table-hover table-striped">
           <thead class="table-dark">
             <tr>
-              <th style="width:80px">ID</th>
+              
               <th style="width:140px">Tags</th>
               <th>Name</th>
               
@@ -43,7 +43,7 @@ export function createTabsTable(state, { onAttachTag, onEditTab, onSyncTab } = {
       const tr = document.createElement("tr");
       tr.dataset.tabId = tab.id;
       tr.innerHTML = `
-        <td><a class="tab-link" href="${tabUrl}">${escapeHtml(tab.id)}</a></td>
+        
         <td class="tag-fill-cell">${renderTagFillCell(tab.tag_ids, { tagLookup: state.tagStore.getById })}</td>
         <td><a class="tab-link" href="${tabUrl}">${escapeHtml(tab.name)}</a></td>
        

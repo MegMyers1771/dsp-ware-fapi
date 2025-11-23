@@ -11,6 +11,17 @@
 <body>
   <nav class="navbar navbar-expand-lg bg-dark" data-bs-theme="dark">
     <div class="container-fluid">
+      <div class="d-flex align-items-center me-3">
+        <div
+          id="apiStatusSpinner"
+          class="spinner-border spinner-border-sm text-body-secondary opacity-75"
+          role="status"
+          aria-live="polite"
+          aria-label="Статус API"
+        >
+          <span class="visually-hidden">Загрузка данных</span>
+        </div>
+      </div>
       <a class="navbar-brand" href="/">DSP-Ware_alpha</a>
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#parserNav" aria-controls="parserNav" aria-expanded="false" aria-label="Toggle navigation">
         <span class="navbar-toggler-icon"></span>
@@ -53,11 +64,13 @@
             <input type="text" class="form-control" id="parserWorksheetName" placeholder="HDD" required>
           </div>
           <div class="col-md-6">
-            <label class="form-label">Колонка с названием ящика</label>
+            <label class="form-label">Колонка с названием ящика (дописать в заголовке если нет)</label>
             <input type="text" class="form-control" id="parserBoxColumn" placeholder="Ящик" required>
           </div>
           <div class="col-md-6">
             <label class="form-label">ID таблицы Google Sheets</label>
+            <label class="form-label">https://docs.google.com/spreadsheets/d/
+              <span style="color: red;">XX_XX-XX-XX</span>/edit?gid=0#gid=0</label>
             <div class="input-group">
               <input type="text" class="form-control" id="parserSpreadsheetId" placeholder="1BUoLe..." />
               <button type="button" class="btn btn-outline-secondary" id="saveSpreadsheetIdBtn">Сохранить</button>
@@ -190,7 +203,7 @@
                 name="user_name"
                 class="form-control"
                 required
-                pattern="^[A-Za-z0-9_-]+$"
+                pattern="^[A-Za-z0-9_\-]+$"
                 maxlength="50"
                 placeholder="user_name"
               />
@@ -225,7 +238,7 @@
                 name="newUserName"
                 class="form-control"
                 required
-                pattern="^[A-Za-z0-9_-]+$"
+                pattern="^[A-Za-z0-9_\-]+$"
                 maxlength="50"
                 placeholder="new_user"
               />

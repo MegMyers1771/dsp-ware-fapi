@@ -2,7 +2,7 @@ import { showTopAlert } from "../../common/alerts.js";
 import { createBoxesController } from "./boxes.js";
 import { createTabState } from "./state.js";
 import { createTabTagManager } from "./tagManagement.js";
-import { fetchTabs, getBoxes } from "../../api.js";
+import { fetchTabs, fetchSyncWorkerStatus, getBoxes } from "../../api.js";
 
 export async function bootstrapTabPage() {
   const tabIdParam = new URLSearchParams(window.location.search).get("tab_id");
@@ -32,6 +32,7 @@ export async function bootstrapTabPage() {
   boxesController.registerTagManager(tagManager);
 
   await initializeTabMeta(state);
+  await ensureSyncWorkerStatus(state);
   setupQuickActions(tagManager);
   setupBoxForm(boxesController);
   setupSearch(state, boxesController);
@@ -65,6 +66,23 @@ async function initializeTabMeta(state) {
   if (titleEl) titleEl.textContent = titleText;
   const brandEl = document.getElementById("tabNavbarBrand");
   if (brandEl) brandEl.textContent = tabName || `Вкладка #${state.tabId}`;
+}
+
+async function ensureSyncWorkerStatus(state) {
+  try {
+    const status = await fetchSyncWorkerStatus();
+    state.syncWorkerOnline = !!status?.rq_worker_online;
+    if (state.syncWorkerOnline === false && !state.syncWorkerWarningShown) {
+      showTopAlert(
+        "Воркер Redis для синхронизации не запущен — изменения не попадут в Google Sheets, пока он не запущен.",
+        "warning",
+        8000
+      );
+      state.syncWorkerWarningShown = true;
+    }
+  } catch (err) {
+    console.warn("Не удалось проверить статус воркера синхронизации", err);
+  }
 }
 
 function setupQuickActions(tagManager) {
@@ -120,9 +138,12 @@ function setupSearch(state, boxesController) {
 
 function setupOpenBoxShortcut(state, boxesController) {
   const btn = document.getElementById("openBoxBtn");
-  if (!btn) return;
-  btn.addEventListener("click", async () => {
-    const value = document.getElementById("openBoxInput").value.trim();
+  const hiddenBtn = document.getElementById("openHiddenBoxBtn");
+  const input = document.getElementById("openBoxInput");
+  const hiddenInput = document.getElementById("openHiddenBoxInput");
+
+  const handleOpen = async (valueRaw) => {
+    const value = (valueRaw || "").trim();
     if (!value) return alert("Введите имя или id ящика");
     const boxes = await getBoxes(state.tabId);
     const byId = boxes.find((box) => String(box.id) === value);
@@ -134,7 +155,19 @@ function setupOpenBoxShortcut(state, boxesController) {
       return showTopAlert("Ящик не найден", "warning");
     }
     await boxesController.openBoxModal(target.id);
-  });
+  };
+
+  if (btn && input) {
+    btn.addEventListener("click", async () => {
+      await handleOpen(input.value);
+    });
+  }
+
+  if (hiddenBtn && hiddenInput) {
+    hiddenBtn.addEventListener("click", async () => {
+      await handleOpen(hiddenInput.value);
+    });
+  }
 }
 
 function collectTagElements() {

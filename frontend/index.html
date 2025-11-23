@@ -13,12 +13,25 @@
 <body>
   <nav class="navbar navbar-expand-lg bg-dark" data-bs-theme="dark">
     <div class="container-fluid">
+      <div class="d-flex align-items-center me-3">
+        <div
+          id="apiStatusSpinner"
+          class="spinner-border spinner-border-sm text-body-secondary opacity-75"
+          role="status"
+          aria-live="polite"
+          aria-label="Статус API"
+        >
+          <span class="visually-hidden">Загрузка данных</span>
+        </div>
+      </div>
       <a class="navbar-brand" href="/">DSP-Ware_alpha</a>
+      <i class="bi bi-circle"></i>
       <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarColor02" aria-controls="navbarColor02" aria-expanded="false" aria-label="Toggle navigation">
         <span class="navbar-toggler-icon"></span>
       </button>
       <div class="collapse navbar-collapse" id="navbarColor02">
         <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+          
           <li class="nav-item">
             <button id="dropdown-new-tab" class="nav-link">Новая вкладка</button>
           </li>
@@ -57,7 +70,7 @@
       <table id="tabsTable" class="table table-hover table-striped">
         <thead class="table-dark">
           <tr>
-            <th style="width:80px">ID</th>
+            <!-- <th style="width:80px">ID</th> -->
             <th style="width:140px">Тэги</th>
             <th>Название</th>
             
@@ -90,7 +103,7 @@
                 name="user_name"
                 class="form-control"
                 required
-                pattern="^[A-Za-z0-9_-]+$"
+                pattern="^[A-Za-z0-9_\-]+$"
                 maxlength="50"
                 placeholder="user_name"
               />
@@ -125,7 +138,7 @@
                 name="newUserName"
                 class="form-control"
                 required
-                pattern="^[A-Za-z0-9_-]+$"
+                pattern="^[A-Za-z0-9_\-]+$"
                 maxlength="50"
                 placeholder="new_user"
               />
@@ -349,6 +362,9 @@
               <label class="form-label" for="tabSyncSpreadsheetId">SPREADSHEET_ID</label>
               <input type="text" class="form-control" id="tabSyncSpreadsheetId" placeholder="1Abc...">
               <div class="form-text">Значение хранится в <code>sheets_config.json</code>.</div>
+            </div>
+            <div class="alert alert-warning small d-none" id="tabSyncWorkerWarning">
+              воркер redis не запущен, синхронизация недоступна
             </div>
           </div>
           <div class="modal-footer">

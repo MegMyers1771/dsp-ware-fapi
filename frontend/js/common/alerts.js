@@ -1,7 +1,34 @@
+function normalizeAlertMessage(raw) {
+  if (raw && typeof raw === "object") {
+    if (raw.detail) {
+      return `Err: ${String(raw.detail)}`;
+    }
+    return JSON.stringify(raw);
+  }
+
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (parsed && typeof parsed === "object" && parsed.detail) {
+          return `Err: ${String(parsed.detail)}`;
+        }
+      } catch {
+        // fall through to default message
+      }
+    }
+    return trimmed || "Err: Неизвестная ошибка";
+  }
+
+  return `Err: ${String(raw)}`;
+}
+
 // Lightweight helper to show a single dismissible bootstrap alert on top of the page.
 export function showTopAlert(message, type = "danger", timeout = 4000) {
   const existing = document.getElementById("topAlert");
   if (existing) existing.remove();
+  const formatted = normalizeAlertMessage(message);
 
   const alert = document.createElement("div");
   alert.id = "topAlert";
@@ -9,7 +36,7 @@ export function showTopAlert(message, type = "danger", timeout = 4000) {
   alert.className = `alert alert-${type} alert-dismissible fade show position-fixed top-0 start-50 translate-middle-x m-3`;
   alert.style.zIndex = 1080;
   alert.innerHTML = `
-    <div>${message}</div>
+    <div>${formatted}</div>
     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
   `;
 
