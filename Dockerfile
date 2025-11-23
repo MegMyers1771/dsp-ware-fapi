@@ -20,4 +20,4 @@ COPY . .
 EXPOSE 7878
 
 # PORT можно переопределить через переменную окружения
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT} --proxy-headers"]
