@@ -13,13 +13,13 @@ services:
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-3600}
       AUTO_CREATE_TABLES: ${AUTO_CREATE_TABLES:-0}
       DEV_NO_CACHE: ${DEV_NO_CACHE:-0}
-      API_URL: ${API_URL:-api:8000}
+      API_URL: ${API_URL:-api:7878}
       RQ_REDIS_URL: ${RQ_REDIS_URL:-redis://redis:6379/0}
       RQ_QUEUE_NAME: ${RQ_QUEUE_NAME:-sync}
       RQ_DEFAULT_TIMEOUT: ${RQ_DEFAULT_TIMEOUT:-90}
       HISTORY_XLSX_PATH: ${HISTORY_XLSX_PATH:-/app/data/issue_history.xlsx}
     ports:
-      - "8000:8000"
+      - "7878:7878"
     depends_on:
       - db
       - redis
@@ -36,7 +36,7 @@ services:
       - .env
     environment:
       NGINX_SERVER_NAME: ${NGINX_SERVER_NAME:-example.com}
-      API_UPSTREAM: ${API_UPSTREAM:-http://api:8000}
+      API_UPSTREAM: ${API_UPSTREAM:-http://api:7878}
     volumes:
       - ./nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
     ports:
