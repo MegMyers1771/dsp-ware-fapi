@@ -28,7 +28,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 NO_CACHE_EXTS = (".js", ".css", ".html", ".htm")
 
-app = FastAPI(title="DSP-Ware API", redirect_slashes=False)
+app = FastAPI(title="DSP-Ware API")
 app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 app.add_middleware(
     CORSMiddleware,
@@ -65,24 +65,10 @@ app.include_router(issues.router)
 app.include_router(parser.router)
 app.include_router(system.router)
 
-def _normalize_api_url(raw) -> str:
-    """Ensure the API URL always has an explicit scheme."""
-    if not raw:
-        return DEFAULT_API_URL
-
-    value = raw.strip()
-    if not value:
-        return DEFAULT_API_URL
-
-    if value.startswith(("http://", "https://")):
-        return value
-
-    return f"http://{value}"
-
 
 def _build_frontend_config() -> dict:
     return {
-        "API_URL": _normalize_api_url(os.getenv("API_URL") or os.getenv("API_UPSTREAM")),
+        "API_URL": os.getenv("API_URL") or os.getenv("API_UPSTREAM"),
     }
 
 @app.get("/")
