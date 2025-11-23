@@ -28,7 +28,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 NO_CACHE_EXTS = (".js", ".css", ".html", ".htm")
 
-app = FastAPI(title="DSP-Ware API")
+app = FastAPI(title="DSP-Ware API", redirect_slashes=False)
 app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 app.add_middleware(
     CORSMiddleware,
