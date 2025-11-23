@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Any, Dict, Union
+from typing import Any, Dict, Union, Optional
 
 import pandas as pd
 from google.oauth2.service_account import Credentials
@@ -33,6 +33,44 @@ def build_sheets_service(creds_source: Union[str, Dict[str, Any], Credentials]):
     creds = _load_credentials(creds_source)
     return build("sheets", "v4", credentials=creds, cache_discovery=False)
 
+
+def _dedupe_box_name(name: str, seen: Dict[str, int]) -> tuple[str, bool]:
+    """
+    Keeps box names unique by appending counters for duplicates:
+    Box, Box (2), Box (3), etc.
+    """
+    count = seen.get(name, 0) + 1
+    seen[name] = count
+    if count == 1:
+        return name, False
+    return f"{name} ({count})", True
+
+
+def _column_index_to_letter(idx: int) -> str:
+    """Convert zero-based index to column letter (A, B, ..., AA, AB, ...)."""
+    result = ""
+    current = idx + 1
+    while current > 0:
+        current, remainder = divmod(current - 1, 26)
+        result = chr(65 + remainder) + result
+    return result
+
+
+def _update_sheet_cell(service, spreadsheet_id: str, worksheet_name: str, column_letter: str, row_number: int, value: str) -> None:
+    if not service or not spreadsheet_id or not worksheet_name or not column_letter:
+        return
+    cell_range = f"'{worksheet_name}'!{column_letter}{row_number}"
+    body = {"values": [[value]]}
+    try:
+        service.spreadsheets().values().update(
+            spreadsheetId=spreadsheet_id,
+            range=cell_range,
+            valueInputOption="USER_ENTERED",
+            body=body,
+        ).execute()
+    except Exception:
+        # Не прерываем парсер из-за ошибки обновления таблицы
+        print(f"Failed to update duplicate box name at {cell_range}")
 
 
 ####################################
@@ -123,11 +161,12 @@ def load_sheet_df(spreadsheet_id, worksheet_name, creds_source):
 # MAIN PARSER
 ####################################
 
-def parse_boxes(df, config, reserved_values):
+def parse_boxes(df, config, reserved_values, *, service=None, spreadsheet_id: Optional[str] = None, worksheet_name: Optional[str] = None):
     box_col = config["box_column"]
     field_map = config["fields"]
 
     boxes = []
+    box_name_counts: Dict[str, int] = {}
     current_box = None
     current_items = []
 
@@ -143,6 +182,13 @@ def parse_boxes(df, config, reserved_values):
             else:
                 break
         return count >= 3
+
+    column_letter = None
+    try:
+        column_idx = df.columns.get_loc(box_col)
+        column_letter = _column_index_to_letter(column_idx)
+    except Exception:
+        column_letter = None
 
     i = 0
     while i < total_rows:
@@ -164,7 +210,12 @@ def parse_boxes(df, config, reserved_values):
                 })
 
             # начинаем новый бокс
-            current_box = box_value.strip()
+            normalized_name = box_value.strip()
+            unique_name, was_modified = _dedupe_box_name(normalized_name, box_name_counts)
+            if was_modified and column_letter:
+                row_number = i + 2  # учитываем заголовок
+                _update_sheet_cell(service, spreadsheet_id, worksheet_name, column_letter, row_number, unique_name)
+            current_box = unique_name
             current_items = []
 
         if not current_box:
@@ -251,6 +302,7 @@ def extract_box_structure(values, config):
     boxes = []
     current_box = None
     current_items = None
+    box_name_counts: Dict[str, int] = {}
 
     i = 0
     while i < total_rows:
@@ -266,8 +318,10 @@ def extract_box_structure(values, config):
             if current_box is not None:
                 boxes.append(current_box)
 
+            normalized_name = box_value
+            unique_name, _ = _dedupe_box_name(normalized_name, box_name_counts)
             current_box = {
-                "box": box_value,
+                "box": unique_name,
                 "__header_row": row_number,
                 "items": [],
             }
@@ -311,6 +365,7 @@ def main(config, creds_override=None):
 
     print("Loading sheet data...")
     df = load_sheet_df(spreadsheet_id, sheet_name, creds_source)
+    service = build_sheets_service(creds_source)
 
     print("Extracting reserved values...")
     reserved_values = {}
@@ -328,65 +383,16 @@ def main(config, creds_override=None):
             sheet_name,
             creds_source
         )
-        print(f"{field}: {reserved_values[field]}")
+        # print(f"{field}: {reserved_values[field]}")
 
     print("Parsing boxes...")
-    boxes = parse_boxes(df, config_data, reserved_values)
+    boxes = parse_boxes(
+        df,
+        config_data,
+        reserved_values,
+        service=service,
+        spreadsheet_id=spreadsheet_id,
+        worksheet_name=sheet_name,
+    )
 
     return boxes
-
-
-
-# json.dumps(boxes, indent=4, ensure_ascii=False)
-
-
-# def _load_json_file(path):
-#     with open(path, encoding="utf-8") as fp:
-#         return json.load(fp)
-
-
-# def _write_output(result, output_path):
-#     dir_name = os.path.dirname(output_path)
-#     if dir_name:
-#         os.makedirs(dir_name, exist_ok=True)
-#     with open(output_path, 'w+', encoding='utf-8') as file:
-#         json.dump(result, file, indent=4, ensure_ascii=False)
-#     print(f"{output_path} dumped")
-
-
-# if __name__ == "__main__":
-#     parser = argparse.ArgumentParser(description="Google Sheet parser")
-#     parser.add_argument("--config-json", help="Path to a JSON file with parser config.")
-#     parser.add_argument("--creds-json", help="Path to a service-account credentials JSON file.")
-#     parser.add_argument("--output", help="Path to output JSON (defaults to parsed-tabs/<worksheet>.json).")
-#     args = parser.parse_args()
-
-#     if not args.config_json and (args.creds_json or args.output):
-#         parser.error("--creds-json/--output can only be used together with --config-json")
-
-#     if args.config_json:
-#         config_dict = _load_json_file(args.config_json)
-#         creds_override = _load_json_file(args.creds_json) if args.creds_json else None
-#         try:
-#             result = main(config_dict, creds_override=creds_override)
-#         except HttpError as exc:
-#             print(f"Google API error: {exc}")
-#             raise SystemExit(1) from exc
-
-#         output_path = args.output or os.path.join('parsed-tabs', f"{result['worksheet_name']}.json")
-#         _write_output(result, output_path)
-#     else:
-#         from configs.general_conf import get_all_configs
-
-#         all_configs = get_all_configs()
-#         for conf in all_configs:
-#             try:
-#                 result = main(conf)
-#                 conf_name = result["worksheet_name"] + '.json'
-
-#                 print(f"Total boxes in {conf_name} - {len(result['boxes'])}")
-
-#                 parsed_path = os.path.join('parsed-tabs', conf_name)
-#                 _write_output(result, parsed_path)
-#             except HttpError as ex:
-#                 print(f"Error parsing {conf}: {ex}")

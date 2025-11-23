@@ -38,7 +38,7 @@
 
 /* Small UI tweaks */
 .btn-close{ filter: invert(1) brightness(1.2); }
-label, .form-label, h5, h6{ color: var(--text); }
+/* label, .form-label, h5, h6{ color: var(--text); } */
 
 /* inputs of type color appear as circle — make text white around it */
 .form-control-color{ padding: 0.15rem 0.6rem; height: 2.4rem; }

@@ -215,6 +215,61 @@ def test_box_position_reorders_on_delete(client: TestClient):
     assert [item["name"] for item in box_items] == ["Item 0", "Item 2"]
 
 
+def test_box_positions_account_for_quantity(client: TestClient):
+    tab_resp = client.post("/tabs/", json={"name": "QtyTab"})
+    assert tab_resp.status_code == 200
+    tab = tab_resp.json()
+
+    field_resp = client.post("/tab_fields/", json={"tab_id": tab["id"], "name": "Spec"})
+    assert field_resp.status_code == 200
+
+    box_resp = client.post(
+        "/boxes/",
+        json={
+            "name": "Qty Box",
+            "tab_id": tab["id"],
+        },
+    )
+    assert box_resp.status_code == 200
+    box = box_resp.json()
+
+    payloads = [
+        {"name": "Bulk", "qty": 5},
+        {"name": "Medium", "qty": 3},
+        {"name": "Single", "qty": 1},
+    ]
+    created = []
+    for data in payloads:
+        resp = client.post(
+            "/items/",
+            json={
+                "name": data["name"],
+                "tab_id": tab["id"],
+                "box_id": box["id"],
+                "qty": data["qty"],
+                "metadata_json": {"Spec": data["name"]},
+            },
+        )
+        assert resp.status_code == 200, resp.text
+        created.append(resp.json())
+
+    positions = [item["box_position"] for item in created]
+    assert positions == [1, 6, 9]
+
+    qty_update = client.put(f"/items/{created[1]['id']}", json={"qty": 4})
+    assert qty_update.status_code == 200, qty_update.text
+    
+    refreshed = client.get(f"/items/{box['id']}")
+    assert refreshed.status_code == 200
+    refreshed_positions = [item["box_position"] for item in refreshed.json()]
+    assert refreshed_positions == [1, 6, 10]
+
+    boxes_resp = client.get(f"/boxes/{tab['id']}")
+    assert boxes_resp.status_code == 200
+    boxes_payload = boxes_resp.json()
+    assert boxes_payload
+    assert boxes_payload[0]["items_count"] == 9
+
 def test_field_rename_preserves_item_metadata(client: TestClient):
     tab_resp = client.post("/tabs/", json={"name": "StableKeyTab"})
     assert tab_resp.status_code == 200

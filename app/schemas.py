@@ -7,7 +7,7 @@ UsernameStr = constr(
     strip_whitespace=True,
     min_length=3,
     max_length=50,
-    pattern=r"^[A-Za-z0-9_-]+$",
+    pattern=r"^[A-Za-z0-9_\-]+$",
 )
 
 # --- Tags ---
@@ -73,6 +73,11 @@ class ItemIssuePayload(BaseModel):
     qty: int = Field(1, ge=1)
 
 
+class SyncResult(BaseModel):
+    status: str
+    detail: Optional[str] = None
+
+
 class ItemUtilizedRead(BaseModel):
     id: int
     issue_id: int
@@ -80,6 +85,7 @@ class ItemUtilizedRead(BaseModel):
     responsible_user_name: Optional[str] = None
     serial_number: Optional[str] = None
     invoice_number: Optional[str] = None
+    sync_result: Optional[SyncResult] = None
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -93,6 +99,14 @@ class IssueHistoryEntry(BaseModel):
     invoice_number: Optional[str] = None
     item_snapshot: Dict[str, Any]
     created_at: datetime
+
+
+class IssueHistoryResponse(BaseModel):
+    items: List[IssueHistoryEntry]
+    total: int
+
+class IssueStatusUpdate(BaseModel):
+    status_id: int
 
 
 # --- Users / Auth ---
@@ -232,6 +246,7 @@ class ItemRead(ItemBase):
     tab_id: int
     box_id: Optional[int]
     box_position: int
+    sync_result: Optional[SyncResult] = None
 
     model_config = ConfigDict(from_attributes=True)
 

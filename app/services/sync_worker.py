@@ -23,7 +23,7 @@ def handle_sync_event(action: str, payload: Dict[str, Any]) -> None:
         logger.warning("Неизвестный тип задачи синхронизации: %s", action)
         return
 
-    config_name = None
+    config_name: Optional[str]
     if action == "update":
         config_name = _resolve_config(payload.get("after") or payload.get("before"))
     else:

@@ -561,6 +561,18 @@ export async function downloadIssuesXlsx() {
   return await res.blob();
 }
 
+export async function updateIssueStatus(issueId, statusId) {
+  const res = await authFetch(`${API_URL}/issues/${issueId}/status`, {
+    method: "PATCH",
+    body: JSON.stringify({ status_id: statusId }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Не удалось обновить статус");
+  }
+  return await res.json();
+}
+
 // ---- Auth & Users ----
 export async function login(payload) {
   const res = await fetch(`${API_URL}/auth/login`, {

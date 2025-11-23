@@ -108,6 +108,7 @@
             <th style="width:160px">Номер счёта</th>
             <th>Айтем</th>
             <th style="width:180px">Создано</th>
+            <th style="width:140px"></th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -205,6 +206,32 @@
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Change Issue Status Modal -->
+  <div class="modal fade" id="historyStatusModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Изменить статус</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <form id="historyStatusForm" class="d-flex flex-column gap-3">
+            <input type="hidden" id="historyStatusIssueId" />
+            <div>
+              <label class="form-label" for="historyStatusSelect">Новый статус</label>
+              <select id="historyStatusSelect" class="form-select" required></select>
+            </div>
+            <div class="text-muted small">Выберите новый статус и подтвердите изменение.</div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+          <button type="submit" form="historyStatusForm" class="btn btn-primary">Сохранить</button>
         </div>
       </div>
     </div>

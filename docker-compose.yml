@@ -1,0 +1,101 @@
+version: "3.9"
+
+services:
+  api:
+    build: .
+    container_name: dsp-ware
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://${DB_USER:-postgres}:${DB_PASSWORD:?Set DB_PASSWORD in .env or shell}@db:5432/${DB_NAME:-app}}
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env or shell}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-3600}
+      AUTO_CREATE_TABLES: ${AUTO_CREATE_TABLES:-0}
+      DEV_NO_CACHE: ${DEV_NO_CACHE:-0}
+      API_URL: ${API_URL:-api:8000}
+      RQ_REDIS_URL: ${RQ_REDIS_URL:-redis://redis:6379/0}
+      RQ_QUEUE_NAME: ${RQ_QUEUE_NAME:-sync}
+      RQ_DEFAULT_TIMEOUT: ${RQ_DEFAULT_TIMEOUT:-90}
+      HISTORY_XLSX_PATH: ${HISTORY_XLSX_PATH:-/app/data/issue_history.xlsx}
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - historydata:/app/data
+
+  nginx:
+    image: nginx:1.25
+    container_name: dsp-ware-nginx
+    restart: unless-stopped
+    depends_on:
+      - api
+    env_file:
+      - .env
+    environment:
+      NGINX_SERVER_NAME: ${NGINX_SERVER_NAME:-example.com}
+      API_UPSTREAM: ${API_UPSTREAM:-http://api:8000}
+    volumes:
+      - ./nginx/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+    ports:
+      - "80:80"
+    command: ["/bin/sh", "-c", "envsubst '$$NGINX_SERVER_NAME $$API_UPSTREAM' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && exec nginx -g 'daemon off;'"]
+
+  worker:
+    build: .
+    container_name: dsp-ware-worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg2://${DB_USER:-postgres}:${DB_PASSWORD:?Set DB_PASSWORD in .env or shell}@db:5432/${DB_NAME:-app}}
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env or shell}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-3600}
+      RQ_REDIS_URL: ${RQ_REDIS_URL:-redis://redis:6379/0}
+      RQ_QUEUE_NAME: ${RQ_QUEUE_NAME:-sync}
+      RQ_DEFAULT_TIMEOUT: ${RQ_DEFAULT_TIMEOUT:-90}
+      HISTORY_XLSX_PATH: ${HISTORY_XLSX_PATH:-/app/data/issue_history.xlsx}
+    depends_on:
+      - redis
+    command: ["rq", "worker", "sync"]
+    volumes:
+      - historydata:/app/data
+
+  logs:
+    image: amir20/dozzle:latest
+    container_name: dsp-ware-dozzle
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      DOZZLE_TAILSIZE: ${DOZZLE_TAILSIZE:-200}
+    ports:
+      - "9999:8080"
+
+  db:
+    image: postgres:16
+    container_name: postgres
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env or shell}
+      POSTGRES_DB: ${DB_NAME:-app}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7
+    container_name: redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+volumes:
+  pgdata:
+  historydata:

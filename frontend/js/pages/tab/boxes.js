@@ -497,7 +497,7 @@ async function openBoxModal(state, tagManagerApi, boxId, highlightItems = null, 
   modalEl.addEventListener("shown.bs.modal", () => setupBoxModalResizeToggle(state));
   const modalTitleEl = modalEl.querySelector(".modal-title");
   if (modalTitleEl) {
-    const title = targetBox?.name ? `Содержимое ящика ${targetBox.name}` : "Содержимое ящика";
+    const title = targetBox?.name ? `Содержимое ящика - ${targetBox.name}` : "Содержимое ящика";
     modalTitleEl.textContent = title;
   }
 
@@ -822,7 +822,7 @@ function buildIssueSummary(state, item, box) {
   const boxLabel = box?.name || (box?.id ? `Ящик #${box.id}` : "—");
   const qtyLabel = typeof item?.qty === "number" ? item.qty : "—";
   return `
-    <div class="fw-semibold">${esc(item?.name || "Без названия")}</div>
+    <div class="text-muted small">${esc(item?.name || "Без названия")}</div>
     <div class="text-muted small">Вкладка: ${esc(tabName)} · Ящик: ${esc(boxLabel)}</div>
     <div class="text-muted small">Кол-во на складе: ${esc(qtyLabel)}</div>
   `;
@@ -831,12 +831,14 @@ function buildIssueSummary(state, item, box) {
 function buildIssueMetadata(item) {
   const entries = Object.entries(item?.metadata_json || {});
   if (!entries.length) {
-    return '<div class="text-muted">Дополнительные поля отсутствуют</div>';
+    return '<div class="text-muted small">Дополнительные поля отсутствуют</div>';
   }
   return entries
     .map(
       ([key, value]) =>
-        `<div><span class="text-secondary">${escapeHtml(key)}:</span> ${formatMetadataDisplay(value)}</div>`
+        `<div class="text-muted small"><span class="text-muted small">${escapeHtml(key)}:</span> ${formatMetadataDisplay(
+          value
+        )}</div>`
     )
     .join("");
 }

@@ -2,27 +2,34 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response
-from app.routers import ( items, tabs, 
-                         boxes, tags, 
-                         field, statuses, 
-                         issues, auth, 
-                         users, parser)
+from app.config import (
+    DEFAULT_API_URL,
+    FRONTEND_DIR,
+    UI_PATH
+)
+from app.routers import (
+    items,
+    tabs,
+    boxes,
+    tags,
+    field,
+    statuses,
+    issues,
+    auth,
+    users,
+    parser,
+    system,
+)
 from . import database, models
-from pathlib import Path
+
 import os
 import json
+from starlette.middleware.base import BaseHTTPMiddleware
+
+NO_CACHE_EXTS = (".js", ".css", ".html", ".htm")
 
 app = FastAPI(title="DSP-Ware API")
-
-# --- UI (Frontend) ---
-ui_path = Path(__file__).parent.parent / "frontend"
-FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
 app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
-
-if os.getenv("AUTO_CREATE_TABLES") == "1":
-    models.Base.metadata.create_all(bind=database.engine)
-
-# Разрешаем CORS (чтобы фронт мог обращаться к API)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # позже можно ограничить
@@ -30,6 +37,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+if os.getenv("AUTO_CREATE_TABLES") == "1":
+    models.Base.metadata.create_all(bind=database.engine)
+
+if os.getenv("DEV_NO_CACHE") == "1":
+
+    @app.middleware("http")
+    async def disable_static_cache(request, call_next):
+        response = await call_next(request)
+        path = request.url.path.lower()
+        if path.startswith("/static") and path.endswith(NO_CACHE_EXTS):
+            response.headers["Cache-Control"] = "no-store"
+            response.headers["Pragma"] = "no-cache"
+        return response
 
 # подключаем роутеры
 app.include_router(auth.router)
@@ -42,10 +63,26 @@ app.include_router(field.router)
 app.include_router(statuses.router)
 app.include_router(issues.router)
 app.include_router(parser.router)
+app.include_router(system.router)
+
+def _normalize_api_url(raw) -> str:
+    """Ensure the API URL always has an explicit scheme."""
+    if not raw:
+        return DEFAULT_API_URL
+
+    value = raw.strip()
+    if not value:
+        return DEFAULT_API_URL
+
+    if value.startswith(("http://", "https://")):
+        return value
+
+    return f"http://{value}"
+
 
 def _build_frontend_config() -> dict:
     return {
-        "API_URL": os.getenv("API_URL", "http://127.0.0.1:8000"),
+        "API_URL": _normalize_api_url(os.getenv("API_URL")),
     }
 
 @app.get("/")

@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import logging
 import os
 from functools import lru_cache
 
 from redis import Redis
-from rq import Queue, Retry
+from rq import Queue, Retry, Worker
+
+logger = logging.getLogger(__name__)
 
 
 @lru_cache
@@ -32,3 +35,24 @@ def enqueue_sync_job(action: str, payload: dict | None) -> None:
         payload,
         retry=retry,
     )
+
+
+def has_active_worker() -> bool:
+    """
+    Проверяет доступность хотя бы одного воркера, обслуживающего очередь синхронизации.
+    """
+    try:
+        queue = _queue()
+        connection = queue.connection
+        queue_name = queue.name
+        workers = Worker.all(connection=connection)
+        for worker in workers or []:
+            try:
+                if queue_name in set(worker.queue_names()):
+                    return True
+            except Exception:
+                continue
+        return False
+    except Exception:
+        logger.exception("Не удалось проверить статус воркера синхронизации")
+        return False

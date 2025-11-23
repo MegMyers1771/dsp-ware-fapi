@@ -9,12 +9,13 @@ from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
 from app import models, database
+from app.config import SECRET_KEY, ACCESS_TOKEN_EXPIRE_MINUTES
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-change-me")
+
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
+
 
 ROLE_PRIORITY = {"viewer": 1, "editor": 2, "admin": 3}
 
@@ -75,6 +76,8 @@ async def get_current_user(
 def _ensure_role(user: models.User, minimum: str):
     user_level = ROLE_PRIORITY.get(user.role, 0)
     min_level = ROLE_PRIORITY.get(minimum, 0)
+
+    print(user_level, min_level)
     if user_level < min_level:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Недостаточно прав")
 

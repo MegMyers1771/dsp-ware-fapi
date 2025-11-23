@@ -7,10 +7,11 @@ from sqlalchemy.orm import sessionmaker
 
 from app.main import app
 from app.database import get_db
-from app.models import Base 
+from app.models import Base
+from app.config import SQLALCHEMY_DATABASE_URL
 
 # Тестовая БД (SQLite, чтобы не портить Postgres)
-SQLALCHEMY_DATABASE_URL = "sqlite:///./test.db"
+
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
@@ -20,7 +21,6 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_database():
-    """Создаём таблицы перед всеми тестами."""
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     yield
@@ -28,7 +28,6 @@ def setup_database():
 
 
 def override_get_db():
-    """Переопределяем зависимость FastAPI для тестов."""
     db = TestingSessionLocal()
     try:
         yield db

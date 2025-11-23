@@ -28,22 +28,3 @@ CONFIG = {
 
     "creds": "service_account.json"
 }
-
-# result = {
-#     "worksheet_name": {ws_name},
-#     "fields": [field1, field2, field3...],
-#     "reserved": {
-#         "field1": [reserved1, reserved2,...]
-#         "field2": [reserved1, reserved2,...]
-#         "field3": [reserved1, reserved2,...]
-#         ...
-#     }
-#     "boxes": [
-#         {
-#             "box": {box_name}
-#             "items": [
-#                 ...
-#             ]
-#         }
-#     ]
-# }

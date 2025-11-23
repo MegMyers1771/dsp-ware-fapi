@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List, Optional
 
-from app.crud import parser_configs
+from app.utils import parser_storage
 from app.services import sheets_config
 from gsheets_parser import parser as sheets_parser
 
@@ -19,7 +19,7 @@ class SyncConfigurationError(ValueError):
 
 class TabSyncManager:
     def __init__(self, config_name: str):
-        self.config = parser_configs.get_config(config_name)
+        self.config = parser_storage.get_config(config_name)
         if not self.config:
             raise SyncConfigurationError(f"Конфигурация '{config_name}' не найдена")
 

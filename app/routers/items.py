@@ -16,13 +16,14 @@ def search_items(
     query: str = Query(..., description="Строка поиска (например, 'DDR4')"),
     tab_id: int = Query(..., description="ID вкладки (например, 1 — 'ОЗУ')"),
     limit: int = Query(100, description="Максимум элементов в ответе"),
+    tag_id: int | None = Query(None, description="ID тега для фильтрации"),
     db: Session = Depends(database.get_db)
 ):
     """
     Быстрый поиск по названию айтема внутри вкладки.
     Возвращает совпадения с информацией о ящике и теге.
     """
-    results = items.search_items(db, query=query, tab_id=tab_id, limit=limit)
+    results = items.search_items(db, query=query, tab_id=tab_id, limit=limit, tag_id=tag_id)
     return {"results": results, "count": len(results)}
 
 

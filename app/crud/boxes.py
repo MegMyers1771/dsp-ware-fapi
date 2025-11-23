@@ -1,8 +1,19 @@
 from typing import Optional
 from sqlalchemy.orm import Session
 from app import models, schemas
-from sqlalchemy import func
+from sqlalchemy import func, case
 from fastapi import HTTPException
+
+DEFAULT_QTY = 1
+
+
+def _box_items_total_expression():
+    normalized_qty = case(
+        (models.Item.qty.is_(None), DEFAULT_QTY),
+        (models.Item.qty <= 0, DEFAULT_QTY),
+        else_=models.Item.qty,
+    )
+    return func.coalesce(func.sum(normalized_qty), 0)
 
 
 def _ensure_unique_box_name(db: Session, name: str, *, exclude_id: Optional[int] = None):
@@ -67,7 +78,8 @@ def get_boxes(db: Session):
     Возвращает список боксов с подсчитанным количеством айтемов в каждом.
     Используется SQL JOIN + GROUP BY для высокой производительности.
     """
-    # 🔹 Подсчёт количества айтемов в каждом боксе одним запросом
+    # 🔹 Подсчёт суммарного количества штук в каждом боксе одним запросом
+    total_qty_expr = _box_items_total_expression().label("items_count")
     box_query = (
         db.query(
             models.Box.id,
@@ -75,7 +87,7 @@ def get_boxes(db: Session):
             models.Box.tab_id,
             models.Box.description,
             models.Box.tag_ids,
-            func.count(models.Item.id).label("items_count")
+            total_qty_expr,
         )
         .outerjoin(models.Item, models.Item.box_id == models.Box.id)
         .group_by(models.Box.id)
@@ -98,22 +110,34 @@ def get_boxes(db: Session):
 def get_boxes_by_tab_id(db: Session, tab_id: int):
     """
     Возвращает все боксы, принадлежащие вкладке с указанным tab_id.
-    Также добавляет в ответ количество айтемов в каждом боксе.
+    Также добавляет в ответ суммарное количество штук в каждом боксе.
     """
-    boxes = db.query(models.Box).filter(models.Box.tab_id == tab_id).all()
+    total_qty_expr = _box_items_total_expression().label("items_count")
+    box_query = (
+        db.query(
+            models.Box.id,
+            models.Box.name,
+            models.Box.tab_id,
+            models.Box.color,
+            models.Box.description,
+            models.Box.tag_ids,
+            total_qty_expr,
+        )
+        .outerjoin(models.Item, models.Item.box_id == models.Box.id)
+        .filter(models.Box.tab_id == tab_id)
+        .group_by(models.Box.id)
+        .order_by(models.Box.id)
+    )
 
-    # Подсчёт количества айтемов для каждого бокса
-    result = []
-    for box in boxes:
-        items_count = db.query(models.Item).filter(models.Item.box_id == box.id).count()
-        result.append({
-            "id": box.id,
-            "name": box.name,
-            "tab_id": box.tab_id,
-            "color": box.color,
-            "description": box.description,
-            "tag_ids": box.tag_ids or [],
-            "items_count": items_count,
-        })
-
-    return result
+    return [
+        {
+            "id": b.id,
+            "name": b.name,
+            "tab_id": b.tab_id,
+            "color": b.color,
+            "description": b.description,
+            "tag_ids": b.tag_ids or [],
+            "items_count": b.items_count,
+        }
+        for b in box_query.all()
+    ]

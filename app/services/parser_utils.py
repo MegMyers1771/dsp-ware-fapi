@@ -7,7 +7,6 @@ def sanitize_name(value: str, fallback: str = "parsed_tab") -> str:
     if not value:
         return fallback
     sanitized = re.sub(r"[^\w\s.-]", "", value, flags=re.UNICODE).strip()
-    sanitized = re.sub(r"\s+", "_", sanitized)
     return sanitized or fallback
 
 

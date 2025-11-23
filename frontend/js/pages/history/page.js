@@ -1,9 +1,10 @@
-import { fetchIssues, fetchStatuses } from "../../api.js";
+import { fetchIssues, fetchStatuses, updateIssueStatus } from "../../api.js";
 import { showTopAlert } from "../../common/alerts.js";
 import { escapeHtml } from "../../common/dom.js";
 import { sanitizeHexColor, getReadableTextColor } from "../../common/colors.js";
 import { createPaginationController } from "../../common/pagination.js";
 import { downloadIssuesXlsx } from "../../api.js";
+import { getCurrentUser } from "../../common/authControls.js";
 
 const HISTORY_PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
 const DEFAULT_HISTORY_PAGE_SIZE = 5;
@@ -25,6 +26,11 @@ export async function bootstrapHistoryPage() {
     createdFrom: document.getElementById("historyFilterCreatedFrom"),
     createdTo: document.getElementById("historyFilterCreatedTo"),
   };
+  const statusModalEl = document.getElementById("historyStatusModal");
+  const statusModal = statusModalEl ? new bootstrap.Modal(statusModalEl) : null;
+  const statusForm = document.getElementById("historyStatusForm");
+  const statusSelect = document.getElementById("historyStatusSelect");
+  const statusIssueIdInput = document.getElementById("historyStatusIssueId");
   const pagination = createPaginationController({
     elements: {
       container: document.getElementById("historyPagination"),
@@ -40,7 +46,7 @@ export async function bootstrapHistoryPage() {
     pageSizeOptions: HISTORY_PAGE_SIZE_OPTIONS,
     onChange: ({ page, perPage }) => loadHistory(state.filters, { page, perPage }),
   });
-  const state = { filters: {}, statuses: [], pagination };
+  const state = { filters: {}, statuses: [], pagination, currentIssueId: null };
   if (!tableBody || !emptyEl) return;
 
   const formatDate = (value) => {
@@ -63,6 +69,12 @@ export async function bootstrapHistoryPage() {
     return {};
   };
 
+  const canEditHistory = () => {
+    const user = getCurrentUser();
+    if (!user) return false;
+    return user.role === "editor" || user.role === "admin";
+  };
+
   const renderEntries = (entries = []) => {
     if (!entries.length) {
       const hasFilters = Object.keys(state.filters || {}).length > 0;
@@ -72,6 +84,7 @@ export async function bootstrapHistoryPage() {
       return;
     }
     emptyEl.classList.add("d-none");
+    const editable = canEditHistory();
     tableBody.innerHTML = entries
       .map((entry) => {
         const snapshot = normalizeSnapshot(entry.item_snapshot);
@@ -85,8 +98,13 @@ export async function bootstrapHistoryPage() {
         const details = [snapshot.tab_name ? `Вкладка: ${snapshot.tab_name}` : null, snapshot.box_name ? `Ящик: ${snapshot.box_name}` : null]
           .filter(Boolean)
           .join(" · ");
+        const actionHtml = editable
+          ? `<button type="button" class="btn btn-outline-primary btn-sm history-status-btn" data-issue-id="${escapeHtml(
+              entry.id
+            )}" data-status-id="${escapeHtml(entry.status_id)}">Изменить статус</button>`
+          : "";
         return `
-          <tr>
+          <tr data-issue-id="${escapeHtml(entry.id)}">
             <td>${escapeHtml(entry.id)}</td>
             <td>${statusHtml}</td>
             <td>${escapeHtml(entry.responsible_user_name || "—")}</td>
@@ -97,6 +115,7 @@ export async function bootstrapHistoryPage() {
               ${details ? `<div class="text-muted small">${escapeHtml(details)}</div>` : ""}
             </td>
             <td>${escapeHtml(formatDate(entry.created_at))}</td>
+            <td class="text-end">${actionHtml}</td>
           </tr>
         `;
       })
@@ -202,6 +221,53 @@ export async function bootstrapHistoryPage() {
       showTopAlert(err?.message || "Не удалось скачать историю", "danger");
     } finally {
       downloadBtn.removeAttribute("disabled");
+    }
+  });
+
+  tableBody?.addEventListener("click", async (event) => {
+    const btn = event.target.closest(".history-status-btn");
+    if (!btn) return;
+    if (!canEditHistory()) {
+      showTopAlert("Недостаточно прав для изменения статуса", "warning");
+      return;
+    }
+    const issueId = Number(btn.dataset.issueId || btn.closest("tr")?.dataset.issueId);
+    const statusId = Number(btn.dataset.statusId);
+    if (!Number.isFinite(issueId)) return;
+    state.currentIssueId = issueId;
+    if (statusIssueIdInput) statusIssueIdInput.value = String(issueId);
+    if (statusSelect) {
+      statusSelect.innerHTML = "";
+      (state.statuses || []).forEach((status) => {
+        const option = document.createElement("option");
+        option.value = String(status.id);
+        option.textContent = status.name || `Статус #${status.id}`;
+        if (Number(status.id) === Number(statusId)) option.selected = true;
+        statusSelect.appendChild(option);
+      });
+    }
+    statusModal?.show();
+  });
+
+  statusForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const issueId = Number(statusIssueIdInput?.value);
+    const newStatusId = Number(statusSelect?.value);
+    if (!Number.isFinite(issueId) || !Number.isFinite(newStatusId)) {
+      showTopAlert("Выберите статус", "warning");
+      return;
+    }
+    statusForm.querySelectorAll("button, select").forEach((el) => el.setAttribute("disabled", "disabled"));
+    try {
+      await updateIssueStatus(issueId, newStatusId);
+      showTopAlert("Статус обновлён", "success");
+      statusModal?.hide();
+      await loadHistory(state.filters, pagination?.state);
+    } catch (err) {
+      console.error("Не удалось обновить статус", err);
+      showTopAlert(err?.message || "Не удалось обновить статус", "danger");
+    } finally {
+      statusForm.querySelectorAll("button, select").forEach((el) => el.removeAttribute("disabled"));
     }
   });
 

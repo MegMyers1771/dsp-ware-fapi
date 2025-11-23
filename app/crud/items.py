@@ -1,11 +1,13 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 from datetime import datetime, UTC
 import json
-from sqlalchemy import func
+from sqlalchemy import func, cast
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Session, selectinload
 from fastapi import HTTPException
 from app import models, schemas
 from app.services import sync_dispatcher
+from app.utils.local_history import append_issue_row
 
 
 def _get_tab_fields(db: Session, tab_id: int, *, required: bool = False) -> List[models.TabField]:
@@ -72,7 +74,7 @@ def _metadata_to_response(metadata_json: Optional[Dict[str, Any]], fields: List[
     return converted
 
 
-def _item_to_schema(item: models.Item, fields: List[models.TabField]) -> schemas.ItemRead:
+def _item_to_schema(item: models.Item, fields: List[models.TabField], sync_result=None) -> schemas.ItemRead:
     return schemas.ItemRead(
         id=item.id,
         name=item.name,
@@ -83,6 +85,7 @@ def _item_to_schema(item: models.Item, fields: List[models.TabField]) -> schemas
         tab_id=item.tab_id,
         box_id=item.box_id,
         box_position=item.box_position,
+        sync_result=sync_result,
     )
 
 
@@ -99,23 +102,37 @@ def _serialize_items(db: Session, items: List[models.Item]) -> List[schemas.Item
     return serialized
 
 
+def _normalize_qty(value: Optional[int]) -> int:
+    qty = int(value or 0)
+    if qty <= 0:
+        return 1
+    return qty
+
+
 def _get_next_box_position(db: Session, box_id: int) -> int:
-    max_position = (
-        db.query(func.max(models.Item.box_position))
+    qty_expr = func.coalesce(models.Item.qty, 1)
+    last_slot = (
+        db.query(func.max(models.Item.box_position + qty_expr - 1))
         .filter(models.Item.box_id == box_id)
         .scalar()
     )
-    return (max_position or 0) + 1
+    return (last_slot or 0) + 1
 
 
-def _compress_box_positions(db: Session, box_id: int, from_position: int) -> None:
-    db.query(models.Item).filter(
-        models.Item.box_id == box_id,
-        models.Item.box_position > from_position,
-    ).update(
-        {models.Item.box_position: models.Item.box_position - 1},
-        synchronize_session=False,
+def _recalculate_box_positions(db: Session, box_id: int) -> None:
+    items = (
+        db.query(models.Item)
+        .filter(models.Item.box_id == box_id)
+        .order_by(models.Item.box_position.asc(), models.Item.id.asc())
+        .all()
     )
+
+    next_position = 1
+    for item in items:
+        normalized_qty = _normalize_qty(getattr(item, "qty", 1))
+        if item.box_position != next_position:
+            item.box_position = next_position
+        next_position += normalized_qty
 
 
 def create_item(db: Session, item: schemas.ItemCreate):
@@ -163,25 +180,28 @@ def create_item(db: Session, item: schemas.ItemCreate):
     db.add(new_item)
     db.commit()
     db.refresh(new_item)
-    result = _item_to_schema(new_item, fields)
     sync_payload = sync_dispatcher.build_item_payload(tab, box, new_item, fields)
-    sync_dispatcher.enqueue_item_created(sync_payload)
+    sync_result = sync_dispatcher.enqueue_item_created(sync_payload)
+    result = _item_to_schema(new_item, fields, sync_result=sync_result)
     return result
 
-def search_items(db: Session, query: str, tab_id: int, limit: int = 100):
+def search_items(db: Session, query: str, tab_id: int, limit: int = 100, tag_id: int | None = None):
     """
     Ищет айтемы по названию в заданной вкладке.
     Возвращает список объектов с данными по ящику и прикреплённым тегам.
     """
 
     # 🔹 1. Ищем только ID совпадений по названию
-    matching_items = (
+    query_base = (
         db.query(models.Item.id)
         .filter(models.Item.tab_id == tab_id)
         .filter(models.Item.name.ilike(f"%{query}%"))
-        .limit(limit)
-        .all()
     )
+
+    if tag_id:
+        query_base = query_base.filter(cast(models.Item.tag_ids, JSONB).contains([int(tag_id)]))
+
+    matching_items = query_base.limit(limit).all()
 
     if not matching_items:
         return []
@@ -237,9 +257,10 @@ def update_item(db: Session, item_id: int, item_data: schemas.ItemUpdate):
     new_box_id = payload.get("box_id", old_box_id)
     box_changed = new_box_id != old_box_id
 
+    boxes_to_recalc: Set[int] = set()
     next_position = db_item.box_position
     if box_changed:
-        _compress_box_positions(db, old_box_id, old_position)
+        boxes_to_recalc.add(old_box_id)
         next_position = _get_next_box_position(db, new_box_id)
 
     tracked_keys = {"name", "qty", "metadata_json", "box_id"}
@@ -261,6 +282,14 @@ def update_item(db: Session, item_id: int, item_data: schemas.ItemUpdate):
 
     if box_changed:
         db_item.box_position = next_position
+        boxes_to_recalc.add(new_box_id)
+
+    if "qty" in payload:
+        boxes_to_recalc.add(db_item.box_id)
+
+    for target_box_id in boxes_to_recalc:
+        if target_box_id is not None:
+            _recalculate_box_positions(db, target_box_id)
 
     db.commit()
     db.refresh(db_item)
@@ -271,11 +300,12 @@ def update_item(db: Session, item_id: int, item_data: schemas.ItemUpdate):
     if box_changed:
         updated_box = db.query(models.Box).filter(models.Box.id == db_item.box_id).first()
 
+    sync_result = None
     if sync_needed:
         after_payload = sync_dispatcher.build_item_payload(tab, updated_box, db_item, tab_fields)
-        sync_dispatcher.enqueue_item_updated(before_payload, after_payload)
+        sync_result = sync_dispatcher.enqueue_item_updated(before_payload, after_payload)
 
-    return _item_to_schema(db_item, tab_fields)
+    return _item_to_schema(db_item, tab_fields, sync_result=sync_result)
 
 def delete_item(db: Session, item_id: int):
     db_item = get_item(db, item_id)
@@ -287,11 +317,9 @@ def delete_item(db: Session, item_id: int):
     tab_fields = _get_tab_fields(db, db_item.tab_id)
     payload = sync_dispatcher.build_item_payload(tab, box, db_item, tab_fields)
 
-    box_id = db_item.box_id
-    deleted_position = db_item.box_position
-
+    target_box_id = db_item.box_id
     db.delete(db_item)
-    _compress_box_positions(db, box_id, deleted_position)
+    _recalculate_box_positions(db, target_box_id)
     db.commit()
     sync_dispatcher.enqueue_item_deleted(payload)
     return {"detail": f"Item {item_id} deleted"}
@@ -354,24 +382,44 @@ def issue_item(db: Session, item_id: int, payload: schemas.ItemIssuePayload):
     before_payload = sync_dispatcher.build_item_payload(db_item.tab, db_item.box, db_item, tab_fields)
 
     should_delete = current_qty - issue_qty <= 0
-    box_id = db_item.box_id
-    deleted_position = db_item.box_position
+    target_box_id = db_item.box_id
 
     if should_delete:
         db.delete(db_item)
-        _compress_box_positions(db, box_id, deleted_position)
     else:
         db_item.qty = current_qty - issue_qty
 
+    _recalculate_box_positions(db, target_box_id)
+
     db.commit()
+    sync_result = None
     if should_delete:
-        sync_dispatcher.enqueue_item_deleted(before_payload)
+        sync_result = sync_dispatcher.enqueue_item_deleted(before_payload)
     else:
         db.refresh(db_item)
         after_payload = sync_dispatcher.build_item_payload(db_item.tab, db_item.box, db_item, tab_fields)
-        sync_dispatcher.enqueue_item_updated(before_payload, after_payload)
+        sync_result = sync_dispatcher.enqueue_item_updated(before_payload, after_payload)
     db.refresh(item_utilized)
-    return item_utilized
+    response = schemas.ItemUtilizedRead.model_validate(item_utilized, from_attributes=True)
+    response.sync_result = sync_result
+    try:
+        snapshot_data = json.loads(snapshot)
+    except Exception:
+        snapshot_data = {}
+    append_issue_row(
+        {
+            "created_at": issue.created_at,
+            "tab_name": snapshot_data.get("tab_name"),
+            "box_name": snapshot_data.get("box_name"),
+            "item_name": snapshot_data.get("item_name"),
+            "qty": issue_qty,
+            "status": status.name,
+            "responsible": user.user_name,
+            "serial": serial_number,
+            "invoice": invoice_number,
+        }
+    )
+    return response
 
 def get_items_by_box(db: Session, box_id: int):
     items = (
@@ -406,10 +454,14 @@ def reorder_items(db: Session, box_id: int, ordered_ids: List[int]):
 
     id_to_item = {item.id: item for item in items_in_box}
 
-    for position, item_id in enumerate(ordered_ids, start=1):
-        id_to_item[item_id].box_position = position
+    ordered_items = [id_to_item[item_id] for item_id in ordered_ids]
+
+    next_position = 1
+    for item in ordered_items:
+        item.box_position = next_position
+        next_position += _normalize_qty(getattr(item, "qty", 1))
 
     db.commit()
 
-    items_in_box.sort(key=lambda item: item.box_position)
-    return _serialize_items(db, items_in_box)
+    ordered_items.sort(key=lambda item: item.box_position)
+    return _serialize_items(db, ordered_items)

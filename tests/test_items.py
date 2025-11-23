@@ -218,8 +218,9 @@ def test_issue_history_listing(client: TestClient):
     history_res = client.get("/issues")
     assert history_res.status_code == 200
     history = history_res.json()
-    assert isinstance(history, list)
-    target = next((entry for entry in history if entry["serial_number"] == "HIST-42"), None)
+    assert isinstance(history, dict)
+    assert "items" in history
+    target = next((entry for entry in history.get("items", []) if entry["serial_number"] == "HIST-42"), None)
     assert target is not None
     assert target["status_name"] == "History"
     assert target["responsible_user_name"] == responsible_user_name
