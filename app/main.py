@@ -82,7 +82,7 @@ def _normalize_api_url(raw) -> str:
 
 def _build_frontend_config() -> dict:
     return {
-        "API_URL": _normalize_api_url(os.getenv("API_URL")),
+        "API_URL": _normalize_api_url(os.getenv("API_URL") or os.getenv("API_UPSTREAM")),
     }
 
 @app.get("/")

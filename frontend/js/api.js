@@ -4,7 +4,7 @@ import { notifyApiRequestEnd, notifyApiRequestStart } from "./common/apiSpinner.
 const globalConfig =
   typeof window !== "undefined" && window.__APP_CONFIG ? window.__APP_CONFIG : {};
 
-export const API_URL = globalConfig.API_URL || "http://127.0.0.1:7878";
+export const API_URL = globalConfig.API_URL || (typeof window !== "undefined" ? window.location.origin : null) || "http://127.0.0.1:7878";
 
 function buildHeaders(headers = {}, body) {
   const result = { ...headers };
