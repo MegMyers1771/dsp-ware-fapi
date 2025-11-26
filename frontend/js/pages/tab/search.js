@@ -16,8 +16,10 @@ export async function handleSearch(state, query, filters = {}, { openBox }) {
     return;
   }
 
-  const grouped = groupSearchResults(filteredResults);
-  container.innerHTML = grouped.map(buildSearchResultMarkup).join("");
+  const detailed = Boolean(state.isDescriptionFull);
+  container.innerHTML = filteredResults
+    .map((item) => buildSearchResultMarkup(item, { detailed }))
+    .join("");
   bindSearchResultButtons(container, async (boxId, highlightIds) => {
     await openBox(boxId, highlightIds);
   });
@@ -157,23 +159,8 @@ export function setupSearchFilters(
   };
 }
 
-function groupSearchResults(results = []) {
-  const map = new Map();
-  results.forEach((item) => {
-    const boxId = item.box?.id ?? null;
-    const name = item.name || "—";
-    const key = boxId ? `${boxId}::${name}` : `solo::${item.id}`;
-    if (!map.has(key)) {
-      map.set(key, {
-        name,
-        boxId,
-        boxName: item.box?.name || "—",
-        itemIds: [],
-      });
-    }
-    map.get(key).itemIds.push(item.id);
-  });
-  return Array.from(map.values());
+function normalizeQty(value) {
+  return typeof value === "number" && value > 0 ? value : 1;
 }
 
 function filterSearchResults(results = [], filters = {}) {
@@ -202,19 +189,49 @@ function filterSearchResults(results = [], filters = {}) {
   });
 }
 
-function buildSearchResultMarkup(group) {
-  const name = escapeHtml(group.name);
-  const countText = `${group.itemIds.length} шт`;
-  const boxLabel = escapeHtml(group.boxName || "—");
-  const openBtn = group.boxId
-    ? `<button class="btn btn-sm btn-outline-success" data-box-id="${group.boxId}" data-highlight-ids="${group.itemIds.join(",")}">${boxLabel}</button>`
+function buildSearchResultMarkup(item, options = {}) {
+  const detailed = Boolean(options.detailed);
+  const name = escapeHtml(item.name || "—");
+  const boxId = item.box?.id ?? null;
+  const boxName = item.box?.name || "—";
+  const ids = item.id ? [item.id] : [];
+  const qtyValue = normalizeQty(item.qty);
+  const countText = qtyValue ? `Кол-во: ${qtyValue}` : "";
+  const serialText = Array.isArray(item.serial_number)
+    ? escapeHtml(item.serial_number.join(", "))
+    : item.serial_number
+      ? escapeHtml(String(item.serial_number))
+      : "";
+  const metaEntries = detailed ? Object.entries(item.metadata || item.metadata_json || {}) : [];
+  const metaHtml = detailed
+    ? metaEntries.length
+      ? metaEntries
+          .map(
+            ([key, value]) =>
+              `<div class="small"><span class="text-muted">${escapeHtml(String(key))}:</span> ${escapeHtml(
+                value == null ? "" : String(value)
+              )}</div>`
+          )
+          .join("")
+      : `<div class="small text-muted">Доп. поля пусты</div>`
+    : "";
+  const highlightAttr = ids.length ? ` data-highlight-ids="${ids.join(",")}"` : "";
+  const openBtn = boxId
+    ? `<button class="btn btn-sm btn-outline-success" data-box-id="${boxId}"${highlightAttr}>${escapeHtml(
+        boxName || "—"
+      )}</button>`
     : `<span class="text-muted small">Ящик неизвестен</span>`;
 
   return `
-    <div class="d-flex align-items-center justify-content-between gap-2 border p-2 mb-2 bg-dark rounded shadow-sm flex-wrap">
-      <div class="d-flex flex-column flex-sm-row gap-2">
-        <span><strong>${name}</strong></span>
-        <span class="badge text-bg-secondary">${countText}</span>
+    <div class="d-flex align-items-start justify-content-between gap-3 border p-2 mb-2 bg-dark rounded shadow-sm flex-wrap">
+      <div class="d-flex flex-column gap-2">
+        <div class="d-flex flex-wrap align-items-center gap-2">
+          <span><strong>${name}</strong></span>
+          ${countText ? `<span class="badge text-bg-secondary">${countText}</span>` : ""}
+          ${!detailed && serialText ? `<span class="badge text-bg-info">SN: ${serialText}</span>` : ""}
+        </div>
+        ${detailed && serialText ? `<div class="small"><span class="text-muted">Серийный:</span> ${serialText}</div>` : ""}
+        ${metaHtml}
       </div>
       ${openBtn}
     </div>

@@ -68,7 +68,7 @@ class IssueRead(BaseModel):
 class ItemIssuePayload(BaseModel):
     status_id: int
     responsible_user_name: UsernameStr
-    serial_number: Optional[str] = None
+    serial_number: List[str] = Field(default_factory=list)
     invoice_number: Optional[str] = None
     qty: int = Field(1, ge=1)
 
@@ -211,6 +211,7 @@ class BoxBase(BaseModel):
     name: str
     description: Optional[str] = None
     tag_ids: List[int] = Field(default_factory=list)
+    capacity: Optional[int] = Field(None, ge=1)
     model_config = ConfigDict(from_attributes=True)
 
 class BoxCreate(BoxBase):
@@ -234,6 +235,7 @@ class ItemBase(BaseModel):
     position: Optional[int] = 1
     metadata_json: Dict[str, Any] = Field(default_factory=dict)
     tag_ids: List[int] = Field(default_factory=list)
+    serial_number: List[str] = Field(default_factory=list)
 
 
 class ItemCreate(ItemBase):
@@ -258,6 +260,7 @@ class ItemUpdate(BaseModel):
     metadata_json: Optional[Dict[str, Any]] = None
     tag_ids: Optional[List[int]] = None
     box_id: Optional[int]
+    serial_number: Optional[List[str]] = None
 
 
 class ItemReorderPayload(BaseModel):

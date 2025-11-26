@@ -13,6 +13,7 @@ export function createTabState(tabId) {
     currentBoxViewBoxId: null,
     currentTabEnablePos: true,
     currentTabFields: [],
+    isDescriptionFull: false,
     itemFormMode: getDefaultItemFormMode(),
     searchFilters: {},
     lastSearchQuery: "",

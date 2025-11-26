@@ -86,14 +86,6 @@ async function ensureSyncWorkerStatus(state) {
 }
 
 function setupQuickActions(tagManager) {
-  const ddAdd = document.getElementById("dropdown-add-box");
-  if (ddAdd) {
-    ddAdd.addEventListener("click", (event) => {
-      event.preventDefault();
-      new bootstrap.Modal(document.getElementById("addBoxModal")).show();
-    });
-  }
-
   const ddTag = document.getElementById("dropdown-create-tag");
   if (ddTag) {
     ddTag.addEventListener("click", async (event) => {
@@ -104,29 +96,68 @@ function setupQuickActions(tagManager) {
 }
 
 function setupBoxForm(boxesController) {
+  const formEl = document.getElementById("addBoxForm");
+  const nameEl = document.getElementById("boxName");
+  const descriptionEl = document.getElementById("boxDescription");
+  const capacityEl = document.getElementById("boxCapacity");
+  const modalEl = document.getElementById("addBoxModal");
+  const modalInstance = modalEl ? new bootstrap.Modal(modalEl) : null;
+  let editBoxId = null;
+
   document.getElementById("addBoxForm")?.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const name = document.getElementById("boxName").value.trim();
-    const description = document.getElementById("boxDescription").value.trim();
+    const name = nameEl?.value.trim() || "";
+    const description = descriptionEl?.value.trim() || "";
+    const capacityRaw = capacityEl?.value ?? "";
+    const capacity = capacityRaw ? Number.parseInt(capacityRaw, 10) : null;
     if (!name) return;
 
     try {
-      await boxesController.createBox(name, description);
-      showTopAlert("Ящик создан", "success");
-      bootstrap.Modal.getInstance(document.getElementById("addBoxModal"))?.hide();
-      document.getElementById("addBoxForm").reset();
+      if (editBoxId) {
+        await boxesController.updateBox(editBoxId, { name, description, capacity });
+        showTopAlert("Ящик обновлён", "success");
+      } else {
+        await boxesController.createBox(name, description, capacity);
+        showTopAlert("Ящик создан", "success");
+      }
+      modalInstance?.hide();
+      formEl?.reset();
+      editBoxId = null;
+      if (nameEl) nameEl.value = "";
+      if (descriptionEl) descriptionEl.value = "";
+      if (capacityEl) capacityEl.value = "";
       await boxesController.renderBoxes();
     } catch (err) {
       console.error("Не удалось создать ящик", err);
-      showTopAlert(err?.message || "Не удалось создать ящик", "danger", 5000);
+      showTopAlert(err?.message || "Не удалось сохранить ящик", "danger", 5000);
     }
   });
+
+  const openForEdit = (box) => {
+    editBoxId = box?.id ?? null;
+    if (nameEl) nameEl.value = box?.name || "";
+    if (descriptionEl) descriptionEl.value = box?.description || "";
+    if (capacityEl) capacityEl.value = box?.capacity ?? "";
+    if (modalEl) modalEl.querySelector(".modal-title").textContent = editBoxId ? "Редактировать ящик" : "Добавить ящик";
+    modalInstance?.show();
+  };
+
+  const addBtn = document.getElementById("dropdown-add-box");
+  if (addBtn) {
+    addBtn.addEventListener("click", () => {
+      editBoxId = null;
+      formEl?.reset();
+      if (modalEl) modalEl.querySelector(".modal-title").textContent = "Добавить ящик";
+      modalInstance?.show();
+    });
+  }
+
+  window.__openBoxEditModal = openForEdit;
 }
 
 function setupSearch(state, boxesController) {
   document.getElementById("searchBtn")?.addEventListener("click", async () => {
     const query = document.getElementById("searchInput").value.trim();
-    if (!query) return;
     await boxesController.handleSearch(query);
   });
 

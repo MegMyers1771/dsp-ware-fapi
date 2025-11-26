@@ -171,10 +171,10 @@ export async function getBoxes(tabId) {
   return await res.json();
 }
 
-export async function createBox(tabId, name, description) {
+export async function createBox(tabId, name, description, capacity = null) {
   const res = await authFetch(`${API_URL}/boxes`, {
     method: "POST",
-    body: JSON.stringify({ tab_id: tabId, name, description }),
+    body: JSON.stringify({ tab_id: tabId, name, description, capacity }),
   });
 
   if (res.status === 400) {
@@ -196,8 +196,22 @@ export async function createBox(tabId, name, description) {
   return await res.json();
 }
 
+export async function updateBox(boxId, payload) {
+  const res = await authFetch(`${API_URL}/boxes/${boxId}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || "Не удалось обновить ящик");
+  }
+
+  return await res.json();
+}
+
 // ---- Items ----
-export async function addItem(tabId, boxId, name, qty, metadata_json) {
+export async function addItem(tabId, boxId, name, qty, metadata_json, serial_number = null) {
   const res = await authFetch(`${API_URL}/items`, {
     method: "POST",
     body: JSON.stringify({
@@ -207,6 +221,7 @@ export async function addItem(tabId, boxId, name, qty, metadata_json) {
       box_id: boxId,
       metadata_json,
       tag_ids: [],
+      serial_number,
     }),
   });
   if (!res.ok) {

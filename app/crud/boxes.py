@@ -87,6 +87,7 @@ def get_boxes(db: Session):
             models.Box.tab_id,
             models.Box.description,
             models.Box.tag_ids,
+            models.Box.capacity,
             total_qty_expr,
         )
         .outerjoin(models.Item, models.Item.box_id == models.Box.id)
@@ -103,6 +104,7 @@ def get_boxes(db: Session):
             "description": b.description,
             "tag_ids": b.tag_ids or [],
             "items_count": b.items_count,
+            "capacity": b.capacity,
         }
         for b in box_query.all()
     ]
@@ -121,6 +123,7 @@ def get_boxes_by_tab_id(db: Session, tab_id: int):
             models.Box.color,
             models.Box.description,
             models.Box.tag_ids,
+            models.Box.capacity,
             total_qty_expr,
         )
         .outerjoin(models.Item, models.Item.box_id == models.Box.id)
@@ -138,6 +141,7 @@ def get_boxes_by_tab_id(db: Session, tab_id: int):
             "description": b.description,
             "tag_ids": b.tag_ids or [],
             "items_count": b.items_count,
+            "capacity": b.capacity,
         }
         for b in box_query.all()
     ]

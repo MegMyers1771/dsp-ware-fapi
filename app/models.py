@@ -1,5 +1,6 @@
 from datetime import datetime, UTC
 import uuid
+
 from sqlalchemy import (
     Column,
     Integer,
@@ -12,6 +13,7 @@ from sqlalchemy import (
     Text,
 )
 from sqlalchemy.orm import relationship, declarative_base
+
 
 Base = declarative_base()
 
@@ -89,6 +91,7 @@ class Box(Base):
     description = Column(String, nullable=True)
     tab_id = Column(Integer, ForeignKey("tabs.id"), nullable=False)
     tag_ids = Column(JSON, nullable=False, default=list)
+    capacity = Column(Integer, nullable=True)
 
 
     tab = relationship("Tab", back_populates="boxes")
@@ -109,6 +112,7 @@ class Item(Base):
     qty = Column(Integer, nullable=False, default=1)
     box_position = Column(Integer, nullable=False, default=1)
     metadata_json = Column(JSON, default={})
+    serial_number = Column(String, nullable=True)
     tab_id = Column(Integer, ForeignKey("tabs.id"), nullable=False)
     box_id = Column(Integer, ForeignKey("boxes.id"), nullable=False)
     tag_ids = Column(JSON, nullable=False, default=list)

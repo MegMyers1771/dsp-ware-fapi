@@ -9,6 +9,7 @@ import {
   updateItem,
   fetchStatuses,
   addItem,
+  updateBox as updateBoxApi,
 } from "../../api.js";
 import { showTopAlert, showBottomToast } from "../../common/alerts.js";
 import { escapeHtml } from "../../common/dom.js";
@@ -34,6 +35,17 @@ function formatMetadataDisplay(value) {
     return "";
   }
   return escapeHtml(normalized);
+}
+
+function parseSerials(value) {
+  if (Array.isArray(value)) {
+    return value.map((val) => String(val || "").trim()).filter(Boolean);
+  }
+  if (value == null) return [];
+  return String(value)
+    .split(",")
+    .map((val) => val.trim())
+    .filter(Boolean);
 }
 
 export function createBoxesController(state, elements) {
@@ -102,11 +114,20 @@ export function createBoxesController(state, elements) {
   state.ui.issueFormController = issueFormController;
 
   const rerunLastSearch = async () => {
-    if (!state.lastSearchQuery) return;
+    if (state.lastSearchQuery === undefined || state.lastSearchQuery === null) return;
     await handleSearch(state, state.lastSearchQuery, state.searchFilters, {
       openBox: (boxId, highlightIds) => openBoxModal(state, tagManagerApi, boxId, highlightIds),
     });
   };
+
+  const descriptionSwitch = document.getElementById("isDescriptionFull");
+  if (descriptionSwitch) {
+    descriptionSwitch.checked = Boolean(state.isDescriptionFull);
+    descriptionSwitch.addEventListener("change", async () => {
+      state.isDescriptionFull = descriptionSwitch.checked;
+      await rerunLastSearch();
+    });
+  }
 
   const filtersController = setupSearchFilters(state, {
     modalEl: elements.searchFiltersModal,
@@ -154,8 +175,12 @@ export function createBoxesController(state, elements) {
     async openBoxModal(boxId, highlightItems = null, options = {}) {
       await openBoxModal(state, tagManagerApi, boxId, highlightItems, options);
     },
-    async createBox(name, description) {
-      await createBoxApi(state.tabId, name, description);
+    async createBox(name, description, capacity = null) {
+      await createBoxApi(state.tabId, name, description, capacity);
+    },
+    async updateBox(id, payload) {
+      await updateBoxApi(id, payload);
+      await renderBoxes(state, tagManagerApi, { skipFetch: false });
     },
     async handleSearch(query) {
       return handleSearch(state, query, state.searchFilters, {
@@ -273,19 +298,32 @@ async function renderBoxes(state, tagManagerApi, options = {}) {
   visibleBoxes.forEach((box) => {
     const tr = document.createElement("tr");
     tr.dataset.boxId = box.id;
+    const itemsCount = Number(box.items_count) || 0;
+    const capacity = box.capacity != null ? Number(box.capacity) : null;
+    let capacityClass = "";
+    let itemsLabel = escapeHtml(itemsCount);
+    if (capacity && capacity > 0) {
+      const ratio = itemsCount / capacity;
+      if (ratio < 0.5) capacityClass = "text-success";
+      else if (ratio < 0.75) capacityClass = "text-warning";
+      else if (ratio < 1) capacityClass = "text-orange";
+      else capacityClass = "text-danger";
+      itemsLabel = `${escapeHtml(itemsCount)} / ${escapeHtml(capacity)}`;
+    }
 
     tr.innerHTML = `
       
       <td class="tag-fill-cell">${renderTagFillCell(box.tag_ids, { tagLookup: state.tagStore.getById, emptyText: "Нет" })}</td>
       <td>${escapeHtml(box.name)}</td>
       <td>${escapeHtml(box.description)}</td>
-      <td class="text-center">${escapeHtml(box.items_count ?? 0)}</td>
+      <td class="text-center ${capacityClass}">${itemsLabel}</td>
       <td class="text-center">
         <div class="btn-group btn-group-sm box-actions-container">
           <button class="btn btn-sm btn-outline-secondary box-actions-dropdown" type="button" data-bs-toggle="dropdown" aria-expanded="false">•••</button>
           <ul class="dropdown-menu dropdown-menu-end">
             <li><button class="dropdown-item box-action-add-item" type="button">Добавить айтем</button></li>
             <li><button class="dropdown-item box-action-attach-tag" type="button">Привязать тэг</button></li>
+            <li><button class="dropdown-item box-action-edit" type="button">Редактировать</button></li>
           </ul>
         </div>
       </td>
@@ -306,6 +344,13 @@ async function renderBoxes(state, tagManagerApi, options = {}) {
     tr.querySelector(".box-action-attach-tag")?.addEventListener("click", async (event) => {
       event.stopPropagation();
       await tagManagerApi?.openAttachBoxTagModal(box);
+    });
+
+    tr.querySelector(".box-action-edit")?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (typeof window.__openBoxEditModal === "function") {
+        window.__openBoxEditModal(box);
+      }
     });
 
     tbody.appendChild(tr);
@@ -351,15 +396,21 @@ async function openBoxModal(state, tagManagerApi, boxId, highlightItems = null, 
     const metaKeys = Array.from(
       new Set([...fieldNames, ...metadataKeys.filter((key) => !fieldNames.includes(key))])
     );
-    const metaCellMaxWidth = "35px";
-    const metaCellStyle = `max-width:${metaCellMaxWidth}; width:${metaCellMaxWidth};`;
-    const posCellStyle = state.currentTabEnablePos
-      ? "width:15px; max-width:15px;"
-      : "width:30px; max-width:30px;";
-    const tagsCellStyle = "width:40px; max-width:40px;";
-    const nameCellStyle = "width:140px; max-width:140px;";
-    const qtyCellStyle = "width:25px; max-width:25px;";
-    const actionsCellStyle = "width:25px; max-width:25px;";
+    const hasSerialColumn = items.some((item) => {
+      const serials = Array.isArray(item.serial_number)
+        ? item.serial_number
+        : String(item.serial_number || "")
+            .split(",")
+            .map((val) => val.trim())
+            .filter(Boolean);
+      return serials.length > 0;
+    });
+    const metaCellStyle = "";
+    const posCellStyle = state.currentTabEnablePos ? "min-width:50px;" : "min-width:50px;";
+    const tagsCellStyle = "min-width:80px;";
+    const nameCellStyle = "min-width:180px;";
+    const qtyCellStyle = "min-width:80px;";
+    const actionsCellStyle = "";
     const headers = [
     
       state.currentTabEnablePos
@@ -367,13 +418,14 @@ async function openBoxModal(state, tagManagerApi, boxId, highlightItems = null, 
         : { key: "__seq", label: "№", style: posCellStyle },
       { key: "__tags", label: "Тэги", style: tagsCellStyle, class: "text-center" },
       { key: "__name", label: "Название", style: nameCellStyle },
+      ...(hasSerialColumn ? [{ key: "__serial", label: "Серийный номер", style: "min-width:160px;" }] : []),
       { key: "__qty", label: "Кол-во", style: qtyCellStyle, class: "text-center" },
       ...metaKeys.map((key) => ({ key, label: key, style: metaCellStyle })),
       { key: "__actions", label: "ACT", style: actionsCellStyle, class: "text-center" },
     ];
 
     const esc = (value) => escapeHtml(value);
-    const minWidth = Math.max(600, headers.length * 160);
+    const minWidth = Math.max(400, headers.length * 120);
     const totalQuantity = items.reduce(
       (acc, current) => acc + (typeof current.qty === "number" && current.qty > 0 ? current.qty : 1),
       0
@@ -434,14 +486,25 @@ async function openBoxModal(state, tagManagerApi, boxId, highlightItems = null, 
                         )}</td>`
                       );
                       cells.push(
-                        `<td class="align-middle item-name-cell" style="${nameCellStyle}" data-item-name="${escapeHtml(
-                          item.name
-                        )}" data-item-id="${item.id}">${esc(item.name)}</td>`
-                      );
-                      const qtyLabel = typeof item.qty === "number" ? item.qty : "—";
-                      cells.push(
-                        `<td class="align-middle text-center" style="${qtyCellStyle}">${esc(qtyLabel)}</td>`
-                      );
+                  `<td class="align-middle item-name-cell" style="${nameCellStyle}" data-item-name="${escapeHtml(
+                    item.name
+                  )}" data-item-id="${item.id}">${esc(item.name)}</td>`
+                );
+                if (hasSerialColumn) {
+                  const serials = Array.isArray(item.serial_number)
+                    ? item.serial_number
+                    : String(item.serial_number || "")
+                        .split(",")
+                        .map((val) => val.trim())
+                        .filter(Boolean);
+                  cells.push(
+                    `<td class="align-middle">${esc(serials.join(", "))}</td>`
+                  );
+                }
+                const qtyLabel = typeof item.qty === "number" ? item.qty : "—";
+                cells.push(
+                  `<td class="align-middle text-center" style="${qtyCellStyle}">${esc(qtyLabel)}</td>`
+                );
                       metaKeys.forEach((key) =>
                         cells.push(
                           `<td class="align-middle item-meta-cell" style="${metaCellStyle}">${formatMetadataDisplay(
@@ -497,7 +560,6 @@ async function openBoxModal(state, tagManagerApi, boxId, highlightItems = null, 
     content.querySelectorAll(".item-actions-dropdown").forEach((btn) => {
       btn.addEventListener("click", (event) => event.stopPropagation());
     });
-    setupItemContextMenus(content);
     const nameCells = content.querySelectorAll(".item-name-cell");
     nameCells.forEach((cell) => {
       const name = cell.dataset.itemName || "";
@@ -551,6 +613,17 @@ async function openBoxModal(state, tagManagerApi, boxId, highlightItems = null, 
         const targetItem = itemMap.get(String(itemId));
         if (targetItem) {
           await tagManagerApi?.openAttachItemTagModal(targetItem);
+        }
+      });
+    });
+    content.querySelectorAll("tbody tr[data-item-id]").forEach((row) => {
+      row.addEventListener("dblclick", async (event) => {
+        if (event.target.closest(".item-actions-container")) return;
+        const itemId = row.dataset.itemId;
+        const targetItem = itemMap.get(String(itemId));
+        if (targetItem) {
+          event.stopPropagation();
+          await openAddItemOffcanvas(state, targetBox, { item: targetItem });
         }
       });
     });
@@ -696,57 +769,6 @@ function enableItemReorder(state, tagManagerApi, container, boxId) {
   });
 }
 
-function setupItemContextMenus(container) {
-  const rows = container.querySelectorAll("tbody tr[data-item-id]");
-  rows.forEach((row) => {
-    row.addEventListener("contextmenu", (event) => {
-      const toggleBtn = row.querySelector(".item-actions-dropdown");
-      const dropdownMenu = row.querySelector(".dropdown-menu");
-      if (!toggleBtn || !dropdownMenu) return;
-      if (event.target.closest(".dropdown-menu")) return;
-      event.preventDefault();
-      event.stopPropagation();
-
-      const pointerX = event.clientX;
-      const pointerY = event.clientY;
-      const existing = bootstrap.Dropdown.getInstance(toggleBtn);
-      if (existing) {
-        existing.hide();
-        existing.dispose();
-      }
-      const reference = {
-        getBoundingClientRect: () => ({
-          width: 0,
-          height: 0,
-          top: pointerY,
-          bottom: pointerY,
-          left: pointerX,
-          right: pointerX,
-          x: pointerX,
-          y: pointerY,
-        }),
-        contextElement: row,
-      };
-
-      const dropdown = new bootstrap.Dropdown(toggleBtn, {
-        reference,
-        popperConfig: {
-          strategy: "fixed",
-          modifiers: [
-            { name: "offset", options: { offset: [0, 6] } },
-          ],
-        },
-      });
-      dropdownMenu.addEventListener(
-        "hidden.bs.dropdown",
-        () => dropdown.dispose(),
-        { once: true }
-      );
-      dropdown.show();
-    });
-  });
-}
-
 async function issueItem(state, issueFormController, item, box) {
   if (!issueFormController) {
     showTopAlert("Форма выдачи недоступна", "danger");
@@ -777,6 +799,7 @@ function setupIssueOffcanvas(state, { onIssued } = {}) {
     qtyInput,
     qtyHintEl,
     serialInput,
+    serialChips,
     invoiceInput,
     summaryEl,
     metaEl,
@@ -825,12 +848,68 @@ function setupIssueOffcanvas(state, { onIssued } = {}) {
   };
 
   const resolveResponsibleUserName = () => (getCurrentUser()?.user_name || "").trim();
+  const parseSerialNumbers = (raw) => parseSerials(raw);
+
+  const renderSerialChips = (serials, maxAvailable = null) => {
+    if (!serialChips) return;
+    serialChips.innerHTML = "";
+    const unique = Array.from(new Set(serials));
+    if (!unique.length) {
+      serialChips.classList.add("d-none");
+      return;
+    }
+    serialChips.classList.remove("d-none");
+    let currentQty = 0;
+    const selected = new Set();
+    const updateFields = () => {
+      if (Number.isInteger(maxAvailable) && maxAvailable >= 0) {
+        currentQty = Math.min(currentQty, maxAvailable);
+      }
+      if (qtyInput) {
+        qtyInput.value = String(Math.max(0, currentQty));
+      }
+      if (serialInput) {
+        const value = selected.size ? Array.from(selected).join(", ") : "";
+        serialInput.value = value;
+      }
+    };
+    unique.forEach((sn) => {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "badge text-bg-secondary serial-chip";
+      chip.textContent = sn;
+      chip.addEventListener("click", () => {
+        const isActive = selected.has(sn);
+        if (isActive) {
+          selected.delete(sn);
+          chip.classList.remove("text-bg-info", "text-dark");
+          chip.classList.add("text-bg-secondary");
+          currentQty = Math.max(0, currentQty - 1);
+        } else {
+          if (Number.isInteger(maxAvailable) && maxAvailable >= 0 && currentQty >= maxAvailable) {
+            return;
+          }
+          selected.add(sn);
+          chip.classList.remove("text-bg-secondary");
+          chip.classList.add("text-bg-info", "text-dark");
+          currentQty += 1;
+        }
+        updateFields();
+      });
+      serialChips.appendChild(chip);
+    });
+    updateFields();
+  };
 
   offcanvasEl.addEventListener("hidden.bs.offcanvas", () => {
     pendingContext = null;
     formEl.reset();
     if (statusSelect) statusSelect.innerHTML = "";
     if (statusHintEl) statusHintEl.textContent = "";
+    if (serialChips) {
+      serialChips.innerHTML = "";
+      serialChips.classList.add("d-none");
+    }
   });
 
   formEl.addEventListener("submit", async (event) => {
@@ -851,8 +930,12 @@ function setupIssueOffcanvas(state, { onIssued } = {}) {
       return;
     }
     const availableQty = Number(pendingContext.item?.qty) || 0;
-    const requestedQtyRaw = qtyInput?.value ?? "1";
-    const requestedQty = Number.parseInt(requestedQtyRaw, 10);
+    const selectedSerials = parseSerialNumbers(serialInput?.value);
+    const requestedQtyRaw = qtyInput?.value ?? "0";
+    let requestedQty = Number.parseInt(requestedQtyRaw, 10);
+    if (selectedSerials.length) {
+      requestedQty = selectedSerials.length;
+    }
     if (!Number.isInteger(requestedQty) || requestedQty <= 0) {
       showTopAlert("Количество должно быть положительным числом", "warning");
       qtyInput?.focus();
@@ -863,7 +946,7 @@ function setupIssueOffcanvas(state, { onIssued } = {}) {
       qtyInput?.focus();
       return;
     }
-    const serialNumber = serialInput?.value.trim();
+    const serialNumber = selectedSerials;
     const invoiceNumber = invoiceInput?.value.trim();
     submitBtn?.setAttribute("disabled", "disabled");
     try {
@@ -915,8 +998,8 @@ function setupIssueOffcanvas(state, { onIssued } = {}) {
       if (responsibleInput) responsibleInput.value = currentUserName;
       const availableQty = Number(pendingContext.item?.qty) || 0;
       if (qtyInput) {
-        qtyInput.value = "1";
-        qtyInput.min = "1";
+        qtyInput.value = "0";
+        qtyInput.min = "0";
         if (availableQty > 0) {
           qtyInput.max = String(availableQty);
           qtyInput.removeAttribute("disabled");
@@ -928,7 +1011,13 @@ function setupIssueOffcanvas(state, { onIssued } = {}) {
       if (qtyHintEl) {
         qtyHintEl.textContent = availableQty > 0 ? `Доступно: ${availableQty}` : "Товар закончился";
       }
+      const initialSerialList = parseSerialNumbers(pendingContext.item?.serial_number);
+      const initialSerial = initialSerialList.join(", ");
+      if (qtyInput) {
+        qtyInput.value = "0";
+      }
       if (serialInput) serialInput.value = "";
+      if (serialChips) renderSerialChips(parseSerialNumbers(initialSerial), availableQty);
       if (invoiceInput) invoiceInput.value = "";
       const savedStatusId = window.localStorage?.getItem("issueStatusId") || "";
       try {
@@ -993,12 +1082,16 @@ async function openAddItemOffcanvas(state, box, { item = null } = {}) {
   });
 
   const formRefs = ensureAddItemFormRefs(state);
-  const { nameInput, qtyInput, boxInput, tabInput, titleEl, submitBtn, fieldsContainer } = formRefs;
+  const { nameInput, qtyInput, serialInput, boxInput, tabInput, titleEl, submitBtn, fieldsContainer } = formRefs;
 
   if (boxInput) boxInput.value = item?.box_id ?? box.id;
   if (tabInput) tabInput.value = item?.tab_id ?? box.tab_id;
   if (nameInput) nameInput.value = item?.name ?? "";
   if (qtyInput) qtyInput.value = String(item?.qty ?? 1);
+  if (serialInput) {
+    const serials = parseSerials(item?.serial_number);
+    serialInput.value = serials.join(", ");
+  }
 
   if (titleEl) {
     titleEl.textContent = isEdit
@@ -1062,16 +1155,26 @@ async function handleItemFormSubmit(event, state, getTagManager) {
   event.preventDefault();
 
   const formRefs = ensureAddItemFormRefs(state);
-  const { tabInput, boxInput, nameInput, qtyInput, fieldsContainer } = formRefs;
+  const { tabInput, boxInput, nameInput, qtyInput, serialInput, fieldsContainer } = formRefs;
   const tabId = parseInt(tabInput?.value ?? "", 10);
   const boxId = parseInt(boxInput?.value ?? "", 10);
   const name = nameInput?.value.trim() || "";
   const qtyValue = Number.parseInt(qtyInput?.value ?? "", 10);
+  const serials = parseSerials(serialInput?.value);
   const metadata_json = {};
   const errors = [];
 
   if (Number.isNaN(boxId)) {
     return showTopAlert("Не выбран ящик для айтема", "danger");
+  }
+
+  if (serials.length > qtyValue) {
+    return showTopAlert("Количество серийных номеров превышает количество айтема", "danger");
+  }
+
+  const uniqueSerials = new Set(serials);
+  if (uniqueSerials.size !== serials.length) {
+    return showTopAlert("Серийные номера внутри айтема должны быть уникальны", "danger");
   }
 
   fieldsContainer?.querySelectorAll("[data-field-name]").forEach((el) => {
@@ -1115,6 +1218,7 @@ async function handleItemFormSubmit(event, state, getTagManager) {
         metadata_json,
         tag_ids: state.itemFormMode?.tagIds ?? [],
         box_id: boxId,
+        serial_number: serials,
       };
 
       let updateResult = null;
@@ -1141,7 +1245,7 @@ async function handleItemFormSubmit(event, state, getTagManager) {
     }
 
     try {
-      createdItem = await addItem(tabId, boxId, name, qtyValue, metadata_json);
+      createdItem = await addItem(tabId, boxId, name, qtyValue, metadata_json, serials);
       showTopAlert("Айтем добавлен", "success");
       announceSyncEvent(
         state,
@@ -1160,6 +1264,7 @@ async function handleItemFormSubmit(event, state, getTagManager) {
     if (qtyInput) {
       qtyInput.value = "1";
     }
+    if (serialInput) serialInput.value = "";
     document.querySelectorAll("#tabFieldsContainer [data-field-name]").forEach((el) => (el.value = ""));
   }
 
@@ -1183,6 +1288,7 @@ function getAddItemFormRefs() {
     fieldsContainer: document.getElementById("tabFieldsContainer"),
     nameInput: document.getElementById("itemName"),
     qtyInput: document.getElementById("itemQty"),
+    serialInput: document.getElementById("itemSerialNumber"),
     boxInput: document.getElementById("itemBoxId"),
     tabInput: document.getElementById("itemTabId"),
     titleEl: document.getElementById("addItemOffcanvasLabel"),
@@ -1207,6 +1313,7 @@ function getIssueFormRefs() {
     qtyInput: document.getElementById("issueQty"),
     qtyHintEl: document.getElementById("issueQtyHint"),
     serialInput: document.getElementById("issueSerialNumber"),
+    serialChips: document.getElementById("issueSerialChips"),
     invoiceInput: document.getElementById("issueInvoiceNumber"),
     summaryEl: document.getElementById("issueItemSummary"),
     metaEl: document.getElementById("issueItemMeta"),

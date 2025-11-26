@@ -25,6 +25,7 @@ from . import database, models
 
 import os
 import json
+import logging
 from starlette.middleware.base import BaseHTTPMiddleware
 
 NO_CACHE_EXTS = (".js", ".css", ".html", ".htm")
@@ -42,6 +43,9 @@ app.add_middleware(
 
 if os.getenv("AUTO_CREATE_TABLES") == "1":
     models.Base.metadata.create_all(bind=database.engine)
+
+
+logging.getLogger("sqlalchemy.engine.Engine").disabled = True
 
 if os.getenv("DEV_NO_CACHE") == "1":
 

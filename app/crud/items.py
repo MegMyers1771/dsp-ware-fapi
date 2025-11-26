@@ -75,10 +75,12 @@ def _metadata_to_response(metadata_json: Optional[Dict[str, Any]], fields: List[
 
 
 def _item_to_schema(item: models.Item, fields: List[models.TabField], sync_result=None) -> schemas.ItemRead:
+    serials = _parse_serials(item.serial_number)
     return schemas.ItemRead(
         id=item.id,
         name=item.name,
         qty=item.qty,
+        serial_number=serials,
         position=item.box_position,
         metadata_json=_metadata_to_response(item.metadata_json, fields),
         tag_ids=list(item.tag_ids or []),
@@ -100,6 +102,21 @@ def _serialize_items(db: Session, items: List[models.Item]) -> List[schemas.Item
             fields_cache[item.tab_id] = _get_tab_fields(db, item.tab_id)
         serialized.append(_item_to_schema(item, fields_cache[item.tab_id]))
     return serialized
+
+
+def _parse_serials(raw: Optional[str | List[str]]) -> List[str]:
+    if raw is None:
+        return []
+    if isinstance(raw, list):
+        return [val.strip() for val in raw if str(val).strip()]
+    return [val.strip() for val in str(raw).split(",") if val.strip()]
+
+
+def _serialize_serials(values: Optional[str | List[str]]) -> Optional[str]:
+    parsed = _parse_serials(values)
+    if not parsed:
+        return None
+    return ", ".join(parsed)
 
 
 def _normalize_qty(value: Optional[int]) -> int:
@@ -176,6 +193,7 @@ def create_item(db: Session, item: schemas.ItemCreate):
         metadata_json=metadata,
         box_position=next_position,
         tag_ids=list(item.tag_ids or []),
+        serial_number=_serialize_serials(item.serial_number),
     )
     db.add(new_item)
     db.commit()
@@ -191,12 +209,12 @@ def search_items(db: Session, query: str, tab_id: int, limit: int = 100, tag_id:
     Возвращает список объектов с данными по ящику и прикреплённым тегам.
     """
 
+    normalized_query = (query or "").strip()
+
     # 🔹 1. Ищем только ID совпадений по названию
-    query_base = (
-        db.query(models.Item.id)
-        .filter(models.Item.tab_id == tab_id)
-        .filter(models.Item.name.ilike(f"%{query}%"))
-    )
+    query_base = db.query(models.Item.id).filter(models.Item.tab_id == tab_id)
+    if normalized_query:
+        query_base = query_base.filter(models.Item.name.ilike(f"%{normalized_query}%"))
 
     if tag_id:
         query_base = query_base.filter(cast(models.Item.tag_ids, JSONB).contains([int(tag_id)]))
@@ -223,6 +241,8 @@ def search_items(db: Session, query: str, tab_id: int, limit: int = 100, tag_id:
         {
             "id": item.id,
             "name": item.name,
+            "qty": item.qty,
+            "serial_number": _parse_serials(item.serial_number),
             "box": {
                 "id": item.box.id,
                 "name": item.box.name,
@@ -263,7 +283,7 @@ def update_item(db: Session, item_id: int, item_data: schemas.ItemUpdate):
         boxes_to_recalc.add(old_box_id)
         next_position = _get_next_box_position(db, new_box_id)
 
-    tracked_keys = {"name", "qty", "metadata_json", "box_id"}
+    tracked_keys = {"name", "qty", "metadata_json", "box_id", "serial_number"}
     sync_needed = any(key in payload for key in tracked_keys)
 
     tab_fields: Optional[List[models.TabField]] = None
@@ -278,7 +298,10 @@ def update_item(db: Session, item_id: int, item_data: schemas.ItemUpdate):
         before_payload = sync_dispatcher.build_item_payload(tab, current_box, db_item, tab_fields)
 
     for key, value in payload.items():
-        setattr(db_item, key, value)
+        if key == "serial_number":
+            setattr(db_item, key, _serialize_serials(value))
+        else:
+            setattr(db_item, key, value)
 
     if box_changed:
         db_item.box_position = next_position
@@ -361,12 +384,15 @@ def issue_item(db: Session, item_id: int, payload: schemas.ItemIssuePayload):
     if not user:
         raise HTTPException(status_code=404, detail="Ответственный пользователь не найден")
 
+    selected_serials = _parse_serials(payload.serial_number)
     issue_qty = max(int(payload.qty or 1), 1)
+    if selected_serials:
+        issue_qty = len(selected_serials)
     if issue_qty > current_qty:
         raise HTTPException(status_code=400, detail="Недостаточно количества для выдачи")
 
     issue = models.Issue(status_id=status.id)
-    serial_number = (payload.serial_number or "").strip() or None
+    serial_number = ", ".join(selected_serials) if selected_serials else None
     invoice_number = (payload.invoice_number or "").strip() or None
     item_utilized = models.ItemUtilized(
         issue=issue,
@@ -381,6 +407,9 @@ def issue_item(db: Session, item_id: int, payload: schemas.ItemIssuePayload):
     tab_fields = _get_tab_fields(db, db_item.tab_id)
     before_payload = sync_dispatcher.build_item_payload(db_item.tab, db_item.box, db_item, tab_fields)
 
+    remaining_serials = _parse_serials(db_item.serial_number)
+    if selected_serials:
+        remaining_serials = [sn for sn in remaining_serials if sn not in set(selected_serials)]
     should_delete = current_qty - issue_qty <= 0
     target_box_id = db_item.box_id
 
@@ -388,6 +417,7 @@ def issue_item(db: Session, item_id: int, payload: schemas.ItemIssuePayload):
         db.delete(db_item)
     else:
         db_item.qty = current_qty - issue_qty
+        db_item.serial_number = _serialize_serials(remaining_serials)
 
     _recalculate_box_positions(db, target_box_id)
 
