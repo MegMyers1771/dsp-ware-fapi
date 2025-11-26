@@ -41,6 +41,9 @@ export function createBoxesController(state, elements) {
 
   state.ui.boxViewModalEl = elements.boxViewModal ?? null;
   state.ui.boxViewModalDialogEl = elements.boxViewModalDialog ?? null;
+  if (!state.ui.boxViewZoom) {
+    state.ui.boxViewZoom = 1;
+  }
   setupBoxModalResizeToggle(state);
   state.ui.addItemFormRefs = state.ui.addItemFormRefs || getAddItemFormRefs();
   state.ui.addItemOffcanvasEl = elements.addItemOffcanvas ?? null;
@@ -163,6 +166,45 @@ export function createBoxesController(state, elements) {
       await filtersController?.open();
     },
   };
+}
+
+function applyBoxViewZoom(state) {
+  const content = document.getElementById("boxViewContent");
+  if (!content) return;
+  const zoom = Number(state.ui.boxViewZoom) || 1;
+  content.style.setProperty("--box-view-zoom", zoom);
+  const zoomInner = content.querySelector(".box-view-zoom-inner");
+  if (zoomInner) {
+    zoomInner.style.transform = `scale(${zoom})`;
+    zoomInner.style.transformOrigin = "top left";
+    zoomInner.style.width = `${(100 / zoom).toFixed(4)}%`;
+  }
+  const label = document.getElementById("boxViewZoomValue");
+  if (label) {
+    label.textContent = `${Math.round(zoom * 100)}%`;
+  }
+  const input = document.getElementById("boxViewZoomInput");
+  if (input && document.activeElement !== input) {
+    input.value = String(Math.round(zoom * 100));
+  }
+}
+
+function setupBoxViewZoomControls(state) {
+  const input = document.getElementById("boxViewZoomInput");
+  const label = document.getElementById("boxViewZoomValue");
+  if (!input || !label || state.ui.boxViewZoomInitialized) return;
+
+  const handleChange = (event) => {
+    const raw = Number(event.target.value);
+    const normalized = Math.min(150, Math.max(75, isFinite(raw) ? raw : 100));
+    state.ui.boxViewZoom = normalized / 100;
+    applyBoxViewZoom(state);
+  };
+
+  input.addEventListener("input", handleChange);
+  input.addEventListener("change", handleChange);
+  state.ui.boxViewZoomInitialized = true;
+  applyBoxViewZoom(state);
 }
 
 async function renderBoxes(state, tagManagerApi, options = {}) {
@@ -309,15 +351,25 @@ async function openBoxModal(state, tagManagerApi, boxId, highlightItems = null, 
     const metaKeys = Array.from(
       new Set([...fieldNames, ...metadataKeys.filter((key) => !fieldNames.includes(key))])
     );
+    const metaCellMaxWidth = "35px";
+    const metaCellStyle = `max-width:${metaCellMaxWidth}; width:${metaCellMaxWidth};`;
+    const posCellStyle = state.currentTabEnablePos
+      ? "width:15px; max-width:15px;"
+      : "width:30px; max-width:30px;";
+    const tagsCellStyle = "width:40px; max-width:40px;";
+    const nameCellStyle = "width:140px; max-width:140px;";
+    const qtyCellStyle = "width:25px; max-width:25px;";
+    const actionsCellStyle = "width:25px; max-width:25px;";
     const headers = [
+    
       state.currentTabEnablePos
-        ? { key: "__pos", label: "POS", style: "width:50px" }
-        : { key: "__seq", label: "№", style: "width:70px" },
-      { key: "__tags", label: "Тэги", style: "width:75px", class: "text-center" },
-      { key: "__name", label: "Название", style: "width:380px" },
-      { key: "__qty", label: "Кол-во", style: "width:110px", class: "text-center" },
-      ...metaKeys.map((key) => ({ key, label: key })),
-      { key: "__actions", label: "Действия", style: "width:140px", class: "text-center" },
+        ? { key: "__pos", label: "POS", style: posCellStyle }
+        : { key: "__seq", label: "№", style: posCellStyle },
+      { key: "__tags", label: "Тэги", style: tagsCellStyle, class: "text-center" },
+      { key: "__name", label: "Название", style: nameCellStyle },
+      { key: "__qty", label: "Кол-во", style: qtyCellStyle, class: "text-center" },
+      ...metaKeys.map((key) => ({ key, label: key, style: metaCellStyle })),
+      { key: "__actions", label: "ACT", style: actionsCellStyle, class: "text-center" },
     ];
 
     const esc = (value) => escapeHtml(value);
@@ -328,73 +380,94 @@ async function openBoxModal(state, tagManagerApi, boxId, highlightItems = null, 
     );
 
     const tableHtml = `
-      <div class="box-table-scroll">
-        <div class="box-table-scroll-top">
-          <div class="box-table-scroll-spacer"></div>
-        </div>
-        <div class="table-responsive box-table-scroll-content">
-        <table class="table table-hover table-sm small" style="min-width:${minWidth}px;">
-          <thead class="table-dark">
-            <tr>
-              ${headers
-                .map(
-                  (header) => `<th ${header.style ? `style="${header.style}"` : ""} class="text-nowrap${header.class ? ` ${header.class}` : ""}">${esc(header.label)}</th>`
-                )
-                .join("")}
-            </tr>
-          </thead>
-          <tbody>
-            ${items
-              .map((item, index) => {
-                const cells = [];
-                const qtyValue = typeof item.qty === "number" && item.qty > 0 ? item.qty : 1;
-                const fromStart = typeof item.box_position === "number" ? item.box_position : null;
-                const lastPosition = fromStart !== null ? fromStart + qtyValue - 1 : null;
-                const fromEnd =
-                  lastPosition !== null && totalQuantity > 0
-                    ? totalQuantity - lastPosition + 1
-                    : null;
-                const posLabel = state.currentTabEnablePos
-                  ? fromStart !== null && fromEnd !== null
-                    ? `${fromStart} (${fromEnd})`
-                    : ""
-                  : index + 1;
-                cells.push(`<td class="align-middle">${esc(posLabel)}</td>`);
-                cells.push(
-                  `<td class="tag-fill-cell align-middle">${renderTagFillCell(item.tag_ids, {
-                    tagLookup: state.tagStore.getById,
-                    emptyText: "Нет",
-                  })}</td>`
-                );
-                cells.push(
-                  `<td class="align-middle item-name-cell" data-item-name="${escapeHtml(
-                    item.name
-                  )}" data-item-id="${item.id}">${esc(item.name)}</td>`
-                );
-                const qtyLabel = typeof item.qty === "number" ? item.qty : "—";
-                cells.push(`<td class="align-middle text-center">${esc(qtyLabel)}</td>`);
-                metaKeys.forEach((key) =>
-                  cells.push(
-                    `<td class="align-middle">${formatMetadataDisplay((item.metadata_json || {})[key])}</td>`
-                  )
-                );
-                cells.push(`
-                  <td class="text-center align-middle">
-                    <div class="btn-group btn-group-sm item-actions-container">
-                      <button class="btn btn-sm btn-outline-secondary item-actions-dropdown" type="button" data-bs-toggle="dropdown" aria-expanded="false">•••</button>
-                      <ul class="dropdown-menu dropdown-menu-end">
-                        <li><button class="dropdown-item item-action-edit" type="button" data-item-id="${item.id}">Редактировать</button></li>
-                        <li><button class="dropdown-item item-action-issue" type="button" data-item-id="${item.id}">Выдать</button></li>
-                        <li><button class="dropdown-item item-action-attach-tag" type="button" data-item-id="${item.id}">Привязать тэг</button></li>
-                      </ul>
-                    </div>
-                  </td>
-                `);
-                return `<tr data-item-id="${item.id}">${cells.join("")}</tr>`;
-              })
-              .join("")}
-          </tbody>
-        </table>
+      <div class="box-view-zoom-wrapper">
+        <div class="box-view-zoom-inner">
+          <div class="box-table-scroll">
+            <div class="box-table-scroll-top">
+              <div class="box-table-scroll-spacer"></div>
+            </div>
+            <div class="table-responsive box-table-scroll-content">
+              <table class="table table-hover table-sm small" style="min-width:${minWidth}px;">
+                <thead class="table-dark">
+                  <tr>
+                    ${headers
+                      .map(
+                        (header) =>
+                          `<th ${header.style ? `style="${header.style}"` : ""} class="text-nowrap${
+                            header.class ? ` ${header.class}` : ""
+                          }">${esc(header.label)}</th>`
+                      )
+                      .join("")}
+                  </tr>
+                </thead>
+                <tbody>
+                  ${items
+                    .map((item, index) => {
+                      const cells = [];
+                      const qtyValue = typeof item.qty === "number" && item.qty > 0 ? item.qty : 1;
+                      const fromStart = typeof item.box_position === "number" ? item.box_position : null;
+                      const lastPosition = fromStart !== null ? fromStart + qtyValue - 1 : null;
+                      const fromEnd =
+                        lastPosition !== null && totalQuantity > 0
+                          ? totalQuantity - lastPosition + 1
+                          : null;
+                      const posCellClasses = ["align-middle"];
+                      if (state.currentTabEnablePos) {
+                        posCellClasses.push("item-pos-handle");
+                      }
+                      const posLabel = state.currentTabEnablePos
+                        ? fromStart !== null && fromEnd !== null
+                          ? `${fromStart} (${fromEnd})`
+                          : ""
+                        : index + 1;
+                      
+                      cells.push(
+                        `<td class="${posCellClasses.join(" ")}" style="${posCellStyle}">${esc(posLabel)}</td>`
+                      );
+                      cells.push(
+                        `<td class="tag-fill-cell align-middle" style="${tagsCellStyle}">${renderTagFillCell(
+                          item.tag_ids,
+                          {
+                            tagLookup: state.tagStore.getById,
+                            emptyText: "Нет",
+                          }
+                        )}</td>`
+                      );
+                      cells.push(
+                        `<td class="align-middle item-name-cell" style="${nameCellStyle}" data-item-name="${escapeHtml(
+                          item.name
+                        )}" data-item-id="${item.id}">${esc(item.name)}</td>`
+                      );
+                      const qtyLabel = typeof item.qty === "number" ? item.qty : "—";
+                      cells.push(
+                        `<td class="align-middle text-center" style="${qtyCellStyle}">${esc(qtyLabel)}</td>`
+                      );
+                      metaKeys.forEach((key) =>
+                        cells.push(
+                          `<td class="align-middle item-meta-cell" style="${metaCellStyle}">${formatMetadataDisplay(
+                            (item.metadata_json || {})[key]
+                          )}</td>`
+                        )
+                      );
+                      cells.push(`
+                        <td class="text-center align-middle" style="${actionsCellStyle}">
+                          <div class="btn-group btn-group-sm item-actions-container">
+                            <button class="btn btn-sm btn-outline-secondary item-actions-dropdown" type="button" data-bs-toggle="dropdown" aria-expanded="false">•••</button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                              <li><button class="dropdown-item item-action-edit" type="button" data-item-id="${item.id}">Редактировать</button></li>
+                              <li><button class="dropdown-item item-action-issue" type="button" data-item-id="${item.id}">Выдать</button></li>
+                              <li><button class="dropdown-item item-action-attach-tag" type="button" data-item-id="${item.id}">Привязать тэг</button></li>
+                            </ul>
+                          </div>
+                        </td>
+                      `);
+                      return `<tr data-item-id="${item.id}">${cells.join("")}</tr>`;
+                    })
+                    .join("")}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
     `;
@@ -424,6 +497,7 @@ async function openBoxModal(state, tagManagerApi, boxId, highlightItems = null, 
     content.querySelectorAll(".item-actions-dropdown").forEach((btn) => {
       btn.addEventListener("click", (event) => event.stopPropagation());
     });
+    setupItemContextMenus(content);
     const nameCells = content.querySelectorAll(".item-name-cell");
     nameCells.forEach((cell) => {
       const name = cell.dataset.itemName || "";
@@ -482,6 +556,9 @@ async function openBoxModal(state, tagManagerApi, boxId, highlightItems = null, 
     });
   }
 
+  applyBoxViewZoom(state);
+  setupBoxViewZoomControls(state);
+
   const addItemBtn = document.getElementById("boxViewAddItemBtn");
   if (addItemBtn) {
     addItemBtn.onclick = async () => {
@@ -529,8 +606,8 @@ async function openBoxModal(state, tagManagerApi, boxId, highlightItems = null, 
 function enableItemReorder(state, tagManagerApi, container, boxId) {
   const tbody = container.querySelector("tbody");
   if (!tbody) return;
-  const rows = Array.from(tbody.querySelectorAll("tr"));
-  if (rows.length < 2) return;
+  const handles = Array.from(tbody.querySelectorAll(".item-pos-handle"));
+  if (handles.length < 2) return;
 
   let draggingRow = null;
   let orderChanged = false;
@@ -545,7 +622,11 @@ function enableItemReorder(state, tagManagerApi, container, boxId) {
     if (event.button !== 0) return;
     if (event.target.closest(".item-actions-container")) return;
 
-    draggingRow = event.currentTarget;
+    const handle = event.currentTarget;
+    const row = handle.closest("tr");
+    if (!row) return;
+
+    draggingRow = row;
     draggingRow.classList.add("dragging");
     orderChanged = false;
     previousUserSelect = document.body.style.userSelect;
@@ -607,9 +688,62 @@ function enableItemReorder(state, tagManagerApi, container, boxId) {
     }
   };
 
-  rows.forEach((row) => {
+  handles.forEach((handle) => {
+    const row = handle.closest("tr");
+    if (!row) return;
     row.classList.add("draggable-item-row");
-    row.addEventListener("mousedown", handleMouseDown);
+    handle.addEventListener("mousedown", handleMouseDown);
+  });
+}
+
+function setupItemContextMenus(container) {
+  const rows = container.querySelectorAll("tbody tr[data-item-id]");
+  rows.forEach((row) => {
+    row.addEventListener("contextmenu", (event) => {
+      const toggleBtn = row.querySelector(".item-actions-dropdown");
+      const dropdownMenu = row.querySelector(".dropdown-menu");
+      if (!toggleBtn || !dropdownMenu) return;
+      if (event.target.closest(".dropdown-menu")) return;
+      event.preventDefault();
+      event.stopPropagation();
+
+      const pointerX = event.clientX;
+      const pointerY = event.clientY;
+      const existing = bootstrap.Dropdown.getInstance(toggleBtn);
+      if (existing) {
+        existing.hide();
+        existing.dispose();
+      }
+      const reference = {
+        getBoundingClientRect: () => ({
+          width: 0,
+          height: 0,
+          top: pointerY,
+          bottom: pointerY,
+          left: pointerX,
+          right: pointerX,
+          x: pointerX,
+          y: pointerY,
+        }),
+        contextElement: row,
+      };
+
+      const dropdown = new bootstrap.Dropdown(toggleBtn, {
+        reference,
+        popperConfig: {
+          strategy: "fixed",
+          modifiers: [
+            { name: "offset", options: { offset: [0, 6] } },
+          ],
+        },
+      });
+      dropdownMenu.addEventListener(
+        "hidden.bs.dropdown",
+        () => dropdown.dispose(),
+        { once: true }
+      );
+      dropdown.show();
+    });
   });
 }
 
