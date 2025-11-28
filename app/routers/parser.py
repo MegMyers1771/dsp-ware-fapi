@@ -5,14 +5,14 @@ from sqlalchemy.orm import Session
 
 from app import database, schemas
 from app.crud import parser_import
-from app.security import require_edit_access
+from app.security import require_edit_access, require_admin_access
 from app.services import parser_runner, sheets_config
 from app.utils import parser_storage
 
 router = APIRouter(
     prefix="/parser",
     tags=["Parser"],
-    dependencies=[Depends(require_edit_access)],
+    dependencies=[Depends(require_admin_access)],
 )
 
 

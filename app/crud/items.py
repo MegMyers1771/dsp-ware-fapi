@@ -366,15 +366,6 @@ def issue_item(db: Session, item_id: int, payload: schemas.ItemIssuePayload):
     if current_qty <= 0:
         raise HTTPException(status_code=400, detail="Item has no remaining quantity")
 
-    snapshot = json.dumps(
-        {
-            "item_name": db_item.name,
-            "tab_name": getattr(db_item.tab, "name", None),
-            "box_name": getattr(db_item.box, "name", None),
-        },
-        ensure_ascii=False,
-    )
-
     target_user_name = payload.responsible_user_name.lower()
     user = (
         db.query(models.User)
@@ -390,6 +381,16 @@ def issue_item(db: Session, item_id: int, payload: schemas.ItemIssuePayload):
         issue_qty = len(selected_serials)
     if issue_qty > current_qty:
         raise HTTPException(status_code=400, detail="Недостаточно количества для выдачи")
+
+    snapshot = json.dumps(
+        {
+            "item_name": db_item.name,
+            "tab_name": getattr(db_item.tab, "name", None),
+            "box_name": getattr(db_item.box, "name", None),
+            "qty": issue_qty,
+        },
+        ensure_ascii=False,
+    )
 
     issue = models.Issue(status_id=status.id)
     serial_number = ", ".join(selected_serials) if selected_serials else None

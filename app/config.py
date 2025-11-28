@@ -14,7 +14,6 @@ def _normalize_api_url(raw: str | None, default: str) -> str:
         return default
     if value.startswith(("http://", "https://")):
         return value
-    # return f"http://{value}"
 
 
 DATABASE_URL = os.getenv("DATABASE_URL")

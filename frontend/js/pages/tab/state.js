@@ -1,7 +1,7 @@
 import { createTagStore } from "../../common/tagStore.js";
 import { fetchTags } from "../../api.js";
 
-export const DEFAULT_BOXES_PAGE_SIZE = 5;
+export const DEFAULT_BOXES_PAGE_SIZE = 10;
 
 export function createTabState(tabId) {
   return {
@@ -90,5 +90,7 @@ export function getDefaultItemFormMode() {
     tagIds: [],
     qty: 1,
     position: 1,
+    keepValuesOnCreate: false,
+    forceCreateSubmission: false,
   };
 }

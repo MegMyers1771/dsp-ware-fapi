@@ -7,7 +7,7 @@ import { downloadIssuesXlsx } from "../../api.js";
 import { getCurrentUser } from "../../common/authControls.js";
 
 const HISTORY_PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
-const DEFAULT_HISTORY_PAGE_SIZE = 5;
+const DEFAULT_HISTORY_PAGE_SIZE = 10;
 
 export async function bootstrapHistoryPage() {
   const tableBody = document.querySelector("#issueHistoryTable tbody");
@@ -98,6 +98,8 @@ export async function bootstrapHistoryPage() {
         const details = [snapshot.tab_name ? `Вкладка: ${snapshot.tab_name}` : null, snapshot.box_name ? `Ящик: ${snapshot.box_name}` : null]
           .filter(Boolean)
           .join(" · ");
+        const qtyNumeric = Number(snapshot.qty);
+        const qtyLabel = Number.isFinite(qtyNumeric) ? qtyNumeric : snapshot.qty ?? "—";
         const actionHtml = editable
           ? `<button type="button" class="btn btn-outline-primary btn-sm history-status-btn" data-issue-id="${escapeHtml(
               entry.id
@@ -114,6 +116,7 @@ export async function bootstrapHistoryPage() {
               <div class="fw-semibold">${escapeHtml(snapshot.item_name || snapshot.value || "—")}</div>
               ${details ? `<div class="text-muted small">${escapeHtml(details)}</div>` : ""}
             </td>
+            <td class="text-center">${escapeHtml(String(qtyLabel))}</td>
             <td>${escapeHtml(formatDate(entry.created_at))}</td>
             <td class="text-end">${actionHtml}</td>
           </tr>

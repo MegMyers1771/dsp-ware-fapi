@@ -10,6 +10,7 @@ import {
   fetchStatuses,
   addItem,
   updateBox as updateBoxApi,
+  deleteBox as deleteBoxApi,
 } from "../../api.js";
 import { showTopAlert, showBottomToast } from "../../common/alerts.js";
 import { escapeHtml } from "../../common/dom.js";
@@ -22,7 +23,7 @@ import {
   toggleBoxModalShift,
   setupBoxModalResizeToggle,
 } from "./uiHelpers.js";
-import { handleSearch, setupSearchFilters } from "./search.js";
+import { handleSearch, setupSearchFilters, refreshSearchResultsView } from "./search.js";
 
 const BOXES_PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
 
@@ -125,7 +126,9 @@ export function createBoxesController(state, elements) {
     descriptionSwitch.checked = Boolean(state.isDescriptionFull);
     descriptionSwitch.addEventListener("change", async () => {
       state.isDescriptionFull = descriptionSwitch.checked;
-      await rerunLastSearch();
+      refreshSearchResultsView(state, {
+        openBox: (boxId, highlightIds) => openBoxModal(state, tagManagerApi, boxId, highlightIds),
+      });
     });
   }
 
@@ -298,7 +301,8 @@ async function renderBoxes(state, tagManagerApi, options = {}) {
   visibleBoxes.forEach((box) => {
     const tr = document.createElement("tr");
     tr.dataset.boxId = box.id;
-    const itemsCount = Number(box.items_count) || 0;
+    const parsedItemsCount = Number(box.items_count);
+    const itemsCount = Number.isFinite(parsedItemsCount) ? parsedItemsCount : 0;
     const capacity = box.capacity != null ? Number(box.capacity) : null;
     let capacityClass = "";
     let itemsLabel = escapeHtml(itemsCount);
@@ -324,6 +328,8 @@ async function renderBoxes(state, tagManagerApi, options = {}) {
             <li><button class="dropdown-item box-action-add-item" type="button">Добавить айтем</button></li>
             <li><button class="dropdown-item box-action-attach-tag" type="button">Привязать тэг</button></li>
             <li><button class="dropdown-item box-action-edit" type="button">Редактировать</button></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><button class="dropdown-item text-danger box-action-delete" type="button">Удалить</button></li>
           </ul>
         </div>
       </td>
@@ -350,6 +356,22 @@ async function renderBoxes(state, tagManagerApi, options = {}) {
       event.stopPropagation();
       if (typeof window.__openBoxEditModal === "function") {
         window.__openBoxEditModal(box);
+      }
+    });
+
+    tr.querySelector(".box-action-delete")?.addEventListener("click", async (event) => {
+      event.stopPropagation();
+      const boxLabel = box.name ? `"${box.name}"` : `#${box.id}`;
+      const confirmed = confirm(`Удалить ящик ${boxLabel}?`);
+      if (!confirmed) return;
+      try {
+        await deleteBoxApi(box.id);
+        state.boxesData = (state.boxesData || []).filter((entry) => Number(entry.id) !== Number(box.id));
+        showTopAlert("Ящик удалён", "success");
+        await renderBoxes(state, tagManagerApi, { skipFetch: true });
+      } catch (err) {
+        console.error("Не удалось удалить ящик", err);
+        showTopAlert(err?.message || "Не удалось удалить ящик", "danger", 5000);
       }
     });
 
@@ -1082,7 +1104,18 @@ async function openAddItemOffcanvas(state, box, { item = null } = {}) {
   });
 
   const formRefs = ensureAddItemFormRefs(state);
-  const { nameInput, qtyInput, serialInput, boxInput, tabInput, titleEl, submitBtn, fieldsContainer } = formRefs;
+  const {
+    formEl,
+    nameInput,
+    qtyInput,
+    serialInput,
+    boxInput,
+    tabInput,
+    titleEl,
+    submitBtn,
+    addButton,
+    fieldsContainer,
+  } = formRefs;
 
   if (boxInput) boxInput.value = item?.box_id ?? box.id;
   if (tabInput) tabInput.value = item?.tab_id ?? box.tab_id;
@@ -1100,6 +1133,24 @@ async function openAddItemOffcanvas(state, box, { item = null } = {}) {
   }
   if (submitBtn) {
     submitBtn.textContent = isEdit ? "Сохранить" : "Добавить";
+  }
+  if (addButton) {
+    addButton.classList.toggle("d-none", !isEdit);
+    addButton.onclick = null;
+    if (isEdit) {
+      addButton.onclick = () => {
+        state.itemFormMode = {
+          ...state.itemFormMode,
+          keepValuesOnCreate: true,
+          forceCreateSubmission: true,
+        };
+        if (formEl?.requestSubmit) {
+          formEl.requestSubmit();
+        } else {
+          formEl?.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+        }
+      };
+    }
   }
 
   if (fieldsContainer) fieldsContainer.innerHTML = `<div class="text-muted">Загрузка...</div>`;
@@ -1206,7 +1257,9 @@ async function handleItemFormSubmit(event, state, getTagManager) {
   }
 
   const tagManagerApi = typeof getTagManager === "function" ? getTagManager() : null;
-  const mode = state.itemFormMode?.mode || "create";
+  const forceCreate = Boolean(state.itemFormMode?.forceCreateSubmission);
+  const preserveValues = Boolean(state.itemFormMode?.keepValuesOnCreate);
+  const mode = forceCreate ? "create" : state.itemFormMode?.mode || "create";
   let highlightId = null;
   let createdItem = null;
 
@@ -1254,18 +1307,22 @@ async function handleItemFormSubmit(event, state, getTagManager) {
         name,
         createdItem?.sync_result
       );
+      state.ui.addItemOffcanvasInstance?.hide();
     } catch (err) {
       console.error("Ошибка добавления:", err);
       showTopAlert(err?.message || "Ошибка при добавлении", "danger");
       return;
     }
     highlightId = createdItem?.id || null;
-    nameInput.value = "";
-    if (qtyInput) {
-      qtyInput.value = "1";
+    const shouldClear = !preserveValues;
+    if (shouldClear) {
+      nameInput.value = "";
+      if (qtyInput) {
+        qtyInput.value = "1";
+      }
+      if (serialInput) serialInput.value = "";
+      document.querySelectorAll("#tabFieldsContainer [data-field-name]").forEach((el) => (el.value = ""));
     }
-    if (serialInput) serialInput.value = "";
-    document.querySelectorAll("#tabFieldsContainer [data-field-name]").forEach((el) => (el.value = ""));
   }
 
   await renderBoxes(state, tagManagerApi);
@@ -1279,6 +1336,10 @@ async function handleItemFormSubmit(event, state, getTagManager) {
     await openBoxModal(state, tagManagerApi, boxId, highlightId ? [highlightId] : null, { refreshOnly: true });
   }
 
+  if (state.itemFormMode) {
+    state.itemFormMode.forceCreateSubmission = false;
+    state.itemFormMode.keepValuesOnCreate = false;
+  }
   setItemFormMode(state);
 }
 
@@ -1293,6 +1354,7 @@ function getAddItemFormRefs() {
     tabInput: document.getElementById("itemTabId"),
     titleEl: document.getElementById("addItemOffcanvasLabel"),
     submitBtn: document.querySelector("#addItemForm button[type='submit']"),
+    addButton: document.getElementById("addItemOffcanvasAddBtn"),
   };
 }
 

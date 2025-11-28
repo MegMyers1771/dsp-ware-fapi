@@ -3,25 +3,41 @@ import { escapeHtml } from "../../common/dom.js";
 import { showTopAlert } from "../../common/alerts.js";
 
 export async function handleSearch(state, query, filters = {}, { openBox }) {
-  state.lastSearchQuery = query;
-  const response = await searchItems(state.tabId, query, { tag_id: filters?.tag_id });
-  const results = response.results || [];
-  const container = getSearchResultsContainer(state);
-  if (!container) return;
+  const normalizedQuery = (query || "").trim();
+  state.lastSearchQuery = normalizedQuery;
+  const filtersActive = hasActiveFilters(filters);
 
-  const filteredResults = filterSearchResults(results, filters);
-  if (!filteredResults.length) {
-    const baseMessage = results.length ? "Совпадений по выбранным фильтрам не найдено" : "Совпадений не найдено";
-    container.innerHTML = `<div class="text-muted">${baseMessage}</div>`;
+  if (!normalizedQuery && !filtersActive) {
+    state.lastSearchResults = [];
+    state.lastSearchBaseMessage = "Введите запрос или фильтры";
+    renderSearchResults(state, {
+      results: [],
+      openBox,
+      emptyMessage: state.lastSearchBaseMessage,
+    });
     return;
   }
 
-  const detailed = Boolean(state.isDescriptionFull);
-  container.innerHTML = filteredResults
-    .map((item) => buildSearchResultMarkup(item, { detailed }))
-    .join("");
-  bindSearchResultButtons(container, async (boxId, highlightIds) => {
-    await openBox(boxId, highlightIds);
+  const response = await searchItems(state.tabId, normalizedQuery, { tag_id: filters?.tag_id });
+  const results = response.results || [];
+  const filteredResults = filterSearchResults(results, filters);
+  state.lastSearchResults = filteredResults;
+  state.lastSearchBaseMessage = results.length ? "Совпадений по выбранным фильтрам не найдено" : "Совпадений не найдено";
+  renderSearchResults(state, {
+    results: filteredResults,
+    openBox,
+    emptyMessage: state.lastSearchBaseMessage,
+  });
+}
+
+export function refreshSearchResultsView(state, { openBox }) {
+  const results = state.lastSearchResults;
+  if (!Array.isArray(results) || results.length === 0) return;
+  renderSearchResults(state, {
+    results,
+    openBox,
+    emptyMessage: state.lastSearchBaseMessage,
+    skipEmptyMessage: true,
   });
 }
 
@@ -236,6 +252,35 @@ function buildSearchResultMarkup(item, options = {}) {
       ${openBtn}
     </div>
   `;
+}
+
+function renderSearchResults(
+  state,
+  { results = [], openBox, emptyMessage = "Совпадений не найдено", skipEmptyMessage = false }
+) {
+  const container = getSearchResultsContainer(state);
+  if (!container) return;
+  if (!results.length) {
+    if (!skipEmptyMessage) {
+      container.innerHTML = `<div class="text-muted">${escapeHtml(emptyMessage)}</div>`;
+    }
+    return;
+  }
+  const detailed = Boolean(state.isDescriptionFull);
+  container.innerHTML = results.map((item) => buildSearchResultMarkup(item, { detailed })).join("");
+  bindSearchResultButtons(container, async (boxId, highlightIds) => {
+    await openBox(boxId, highlightIds);
+  });
+}
+
+function hasActiveFilters(filters = {}) {
+  if (!filters || typeof filters !== "object") return false;
+  if (Number.isFinite(Number(filters.tag_id)) && Number(filters.tag_id) > 0) return true;
+  return Object.entries(filters).some(([key, value]) => {
+    if (key === "tag_id") return false;
+    if (typeof value === "string") return value.trim().length > 0;
+    return value !== undefined && value !== null && value !== "";
+  });
 }
 
 function bindSearchResultButtons(container, handler) {

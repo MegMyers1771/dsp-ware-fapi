@@ -273,7 +273,7 @@
             </div>
             <div class="mb-3">
               <label class="form-label">Описание</label>
-              <input type="text" id="boxDescription" class="form-control" placeholder="" required />
+              <input type="text" id="boxDescription" class="form-control" placeholder=""/>
             </div>
             <div class="mb-3">
               <label class="form-label">Вместимость (опционально)</label>
@@ -326,7 +326,10 @@
   <!-- 🔹 Оффканвас добавления айтема -->
   <div class="offcanvas offcanvas-start" tabindex="-1" id="addItemOffcanvas" aria-labelledby="addItemOffcanvasLabel" data-bs-scroll="true" data-bs-backdrop="false">
     <div class="offcanvas-header">
-      <h5 class="offcanvas-title" id="addItemOffcanvasLabel">Добавить айтем</h5>
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <h5 class="offcanvas-title mb-0" id="addItemOffcanvasLabel">Добавить айтем</h5>
+        <button type="button" class="btn btn-sm btn-outline-success d-none" id="addItemOffcanvasAddBtn">Добавить как новый</button>
+      </div>
       <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Закрыть"></button>
     </div>
     <div class="offcanvas-body">
@@ -415,32 +418,36 @@
   <div class="modal fade" id="boxViewModal" tabindex="-1" aria-hidden="false">
     <div class="modal-dialog modal-lg modal-dialog-scrollable box-modal-dialog" id="boxViewModalDialog">
       <div class="modal-content box-modal-content" id="boxViewModalContent">
-        <div class="modal-header">
-          <h5 class="modal-title">Содержимое ящика</h5>
-          <div class="d-flex align-items-center gap-2 box-view-zoom-controls">
-            <label for="boxViewZoomInput" class="form-label mb-0 small text-muted">Масштаб</label>
-            <input
-              type="range"
-              width="100"
-              id="boxViewZoomInput"
-              class="form-range box-view-zoom-range"
-              min="65"
-              max="150"
-              step="5"
-              value="100"
-            />
-            <span id="boxViewZoomValue" class="badge text-bg-secondary">100%</span>
+        <div class="modal-header box-view-header">
+          <div class="box-view-header-main d-flex align-items-center gap-3 flex-wrap">
+            <h5 class="modal-title mb-0">Содержимое ящика</h5>
+            <div class="d-flex align-items-center gap-2 box-view-zoom-controls flex-wrap">
+              <label for="boxViewZoomInput" class="form-label mb-0 small text-muted">Масштаб</label>
+              <input
+                type="range"
+                width="100"
+                id="boxViewZoomInput"
+                class="form-range box-view-zoom-range"
+                min="65"
+                max="150"
+                step="5"
+                value="100"
+              />
+              <span id="boxViewZoomValue" class="badge text-bg-secondary">100%</span>
+            </div>
           </div>
-          <button
-            type="button"
-            class="btn btn-outline-light box-view-toggle"
-            id="boxViewExpandToggle"
-            aria-pressed="false"
-            title="Переключить размер"
-          >
-            ⤢
-          </button>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          <div class="box-view-header-actions d-flex align-items-center gap-2">
+            <button
+              type="button"
+              class="btn btn-outline-light box-view-toggle"
+              id="boxViewExpandToggle"
+              aria-pressed="false"
+              title="Переключить размер"
+            >
+              ⤢
+            </button>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
         </div>
         <div class="modal-body">
           <div id="boxViewContent" class="p-2"></div>

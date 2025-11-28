@@ -34,5 +34,5 @@ def ensure_unique_name(
     if query.first():
         raise HTTPException(
             status_code=400,
-            detail=f"{entity_label} already exists (уже существует)",
+            detail=f"{entity_label} {name} уже существует",
         )

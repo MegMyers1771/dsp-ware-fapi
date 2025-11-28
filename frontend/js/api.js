@@ -210,6 +210,22 @@ export async function updateBox(boxId, payload) {
   return await res.json();
 }
 
+export async function deleteBox(boxId) {
+  const res = await authFetch(`${API_URL}/boxes/${boxId}`, { method: "DELETE" });
+  let payload = null;
+  try {
+    payload = await res.json();
+  } catch {
+    payload = null;
+  }
+  if (!res.ok) {
+    const message =
+      payload?.detail || payload?.message || (typeof payload === "string" ? payload : null) || "Не удалось удалить ящик";
+    throw new Error(message);
+  }
+  return payload || {};
+}
+
 // ---- Items ----
 export async function addItem(tabId, boxId, name, qty, metadata_json, serial_number = null) {
   const res = await authFetch(`${API_URL}/items`, {
