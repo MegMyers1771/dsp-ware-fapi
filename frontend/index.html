@@ -7,6 +7,12 @@
 
   <link href="/static/css/bootstrap.min.css" rel="stylesheet">
   <link href="/static/css/tag-elements.css" rel="stylesheet">
+  <style>
+    #advancedModeWrapper table.advanced-table td,
+    #advancedModeWrapper table.advanced-table th {
+      border: 1px solid rgba(185, 177, 177, 0.08);
+    }
+  </style>
   
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </head>
@@ -67,6 +73,7 @@
             </a>
             <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="currentUserDropdown">
               <li><button type="button" id="userManagementBtn" class="dropdown-item d-none">Управление пользователями</button></li>
+              <li><button type="button" id="advancedModeBtn" class="dropdown-item d-none">Расширенный режим</button></li>
               <li><button type="button" id="loginBtn" class="dropdown-item">Войти</button></li>
               <li><button type="button" id="logoutBtn" class="dropdown-item text-danger d-none">Выйти</button></li>
             </ul>
@@ -78,6 +85,24 @@
 
   <div class="container">
     <h2 class="mb-5" style="text-align: text-center;">Cписок вкладок</h2>
+
+    <div id="advancedModeWrapper" class="card shadow-sm mb-4 d-none">
+      <div class="card-body">
+        <div class="d-flex align-items-center gap-3 flex-wrap mb-3">
+          <h5 class="mb-0">Расширенный режим</h5>
+          <div class="progress flex-grow-1" style="height: 6px; min-width: 200px;">
+            <div id="advancedProgress" class="progress-bar progress-bar-striped" role="progressbar" style="width: 0%;"></div>
+          </div>
+          <span id="advancedProgressLabel" class="text-muted small"></span>
+        </div>
+        <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+          <div id="advancedModeMessage" class="text-muted"></div>
+          <button id="advancedRefreshBtn" type="button" class="btn btn-outline-secondary btn-sm">Обновить</button>
+        </div>
+        <ul class="nav nav-tabs" id="advancedTabsNav" role="tablist"></ul>
+        <div class="tab-content mt-3" id="advancedTabsContent"></div>
+      </div>
+    </div>
 
     <div id="tabsTableContainer">
       <table id="tabsTable" class="table table-hover table-striped">

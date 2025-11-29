@@ -25,6 +25,7 @@ export async function initAuthControls() {
   const loginForm = document.getElementById("loginForm");
   const loginModal = loginModalEl ? new bootstrap.Modal(loginModalEl) : null;
   const userManagementBtn = document.getElementById("userManagementBtn");
+  const advancedModeBtn = document.getElementById("advancedModeBtn");
 
   loginBtn?.addEventListener("click", () => {
     if (loginForm) loginForm.reset();
@@ -61,6 +62,13 @@ export async function initAuthControls() {
   });
 
   userManagementBtn?.addEventListener("click", () => openUsersModal());
+  advancedModeBtn?.addEventListener("click", () => {
+    if (typeof window.__openAdvancedMode === "function") {
+      window.__openAdvancedMode();
+    } else {
+      window.location.href = "/?advanced=1";
+    }
+  });
   setupUserManagementModal();
 
   await refreshCurrentUser();
@@ -93,6 +101,7 @@ function updateAuthUI() {
   const logoutBtn = document.getElementById("logoutBtn");
   const userDropdown = document.getElementById("currentUserDropdown");
   const userMgmtBtn = document.getElementById("userManagementBtn");
+  const advancedModeBtn = document.getElementById("advancedModeBtn");
 
   if (currentUser) {
     loginBtn?.classList.add("d-none");
@@ -102,8 +111,10 @@ function updateAuthUI() {
     }
     if (currentUser.role === "admin") {
       userMgmtBtn?.classList.remove("d-none");
+      advancedModeBtn?.classList.remove("d-none");
     } else {
       userMgmtBtn?.classList.add("d-none");
+      advancedModeBtn?.classList.add("d-none");
     }
   } else {
     loginBtn?.classList.remove("d-none");
@@ -112,6 +123,7 @@ function updateAuthUI() {
       userDropdown.textContent = "(Авторизация)";
     }
     userMgmtBtn?.classList.add("d-none");
+    advancedModeBtn?.classList.add("d-none");
   }
 }
 
