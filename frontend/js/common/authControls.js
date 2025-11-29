@@ -91,15 +91,14 @@ async function refreshCurrentUser() {
 function updateAuthUI() {
   const loginBtn = document.getElementById("loginBtn");
   const logoutBtn = document.getElementById("logoutBtn");
-  const userBadge = document.getElementById("currentUserBadge");
+  const userDropdown = document.getElementById("currentUserDropdown");
   const userMgmtBtn = document.getElementById("userManagementBtn");
 
   if (currentUser) {
     loginBtn?.classList.add("d-none");
     logoutBtn?.classList.remove("d-none");
-    if (userBadge) {
-      userBadge.textContent = `${currentUser.user_name} (${currentUser.role})`;
-      userBadge.classList.remove("d-none");
+    if (userDropdown) {
+      userDropdown.textContent = `${currentUser.user_name} (${currentUser.role})`;
     }
     if (currentUser.role === "admin") {
       userMgmtBtn?.classList.remove("d-none");
@@ -109,7 +108,9 @@ function updateAuthUI() {
   } else {
     loginBtn?.classList.remove("d-none");
     logoutBtn?.classList.add("d-none");
-    userBadge?.classList.add("d-none");
+    if (userDropdown) {
+      userDropdown.textContent = "(Авторизация)";
+    }
     userMgmtBtn?.classList.add("d-none");
   }
 }

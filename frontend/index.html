@@ -54,10 +54,23 @@
           </li>
         </ul>
         <div class="d-flex align-items-center gap-2 ms-auto flex-wrap">
-          <span id="currentUserBadge" class="badge text-bg-secondary d-none"></span>
-          <button type="button" id="loginBtn" class="btn btn-outline-light btn-sm">Войти</button>
-          <button type="button" id="logoutBtn" class="btn btn-outline-danger btn-sm d-none">Выйти</button>
-          <button type="button" id="userManagementBtn" class="btn btn-outline-info btn-sm d-none">Пользователи</button>
+          <div class="nav-item dropdown">
+            <a
+              class="nav-link dropdown-toggle"
+              href="#"
+              role="button"
+              id="currentUserDropdown"
+              data-bs-toggle="dropdown"
+              aria-expanded="false"
+            >
+              (Авторизация)
+            </a>
+            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="currentUserDropdown">
+              <li><button type="button" id="userManagementBtn" class="dropdown-item d-none">Управление пользователями</button></li>
+              <li><button type="button" id="loginBtn" class="dropdown-item">Войти</button></li>
+              <li><button type="button" id="logoutBtn" class="dropdown-item text-danger d-none">Выйти</button></li>
+            </ul>
+          </div>
         </div>
       </div>
     </div>

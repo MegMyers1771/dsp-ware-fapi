@@ -594,6 +594,10 @@ async function openBoxModal(state, tagManagerApi, boxId, highlightItems = null, 
       });
       cell.addEventListener("mouseup", async (event) => {
         if (pointerMoved) return;
+        if (!navigator?.clipboard?.writeText) {
+          showTopAlert("Буфер обмена недоступен", "warning");
+          return;
+        }
         try {
           await navigator.clipboard.writeText(name);
           cell.classList.add("text-success");
@@ -669,7 +673,7 @@ async function openBoxModal(state, tagManagerApi, boxId, highlightItems = null, 
   modalEl.addEventListener("shown.bs.modal", () => setupBoxModalResizeToggle(state));
   const modalTitleEl = modalEl.querySelector(".modal-title");
   if (modalTitleEl) {
-    const title = targetBox?.name ? `Содержимое ящика - ${targetBox.name}` : "Содержимое ящика";
+    const title = targetBox?.name ? `${targetBox.name}` : "Содержимое ящика";
     modalTitleEl.textContent = title;
   }
 

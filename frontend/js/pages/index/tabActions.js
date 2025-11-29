@@ -179,7 +179,7 @@ export async function openEditTabModal(tab) {
   container.innerHTML = "Загрузка...";
 
   const fields = await getTabFields(tab.id);
-  const usedMap = await fieldsUsedMap(tab.id, fields);
+  // const usedMap = await fieldsUsedMap(tab.id, fields);
 
   container.innerHTML = "";
   const initialIds = fields
@@ -195,9 +195,9 @@ export async function openEditTabModal(tab) {
       strong: field.strong,
     });
     if (!row) return;
-    if (usedMap[field.id]) {
-      lockFieldRow(row);
-    }
+    // if (usedMap[field.id]) {
+    //   lockFieldRow(row);
+    // }
   });
 
   new bootstrap.Modal(document.getElementById("editTabModal")).show();
