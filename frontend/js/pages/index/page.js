@@ -282,7 +282,7 @@ function buildAdvancedBoxesTable(boxes, itemsByBox, tabFields, state) {
             <tr>${boxHeaders.join("")}</tr>
           </thead>
           <tbody>
-            <tr class="table-info">
+            <tr class="table-secondary">
               <td class="tag-fill-cell">${renderTagFillCell(box.tag_ids, { tagLookup: state.tagStore.getById, emptyText: "Нет" })}</td>
               <td>${escapeHtml(box.name || `Ящик #${box.id}`)}</td>
               <td>${escapeHtml(box.description || "")}</td>

@@ -4,7 +4,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response
 from app.config import (
-    DEFAULT_API_URL,
+    API_BASE_URL,
     FRONTEND_DIR,
     UI_PATH
 )
@@ -74,7 +74,7 @@ app.include_router(system.router)
 
 def _build_frontend_config() -> dict:
     return {
-        "API_URL": os.getenv("API_URL") or os.getenv("API_UPSTREAM"),
+        "API_URL": API_BASE_URL,
     }
 
 @app.get("/")
