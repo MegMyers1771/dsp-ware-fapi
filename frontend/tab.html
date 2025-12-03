@@ -35,18 +35,32 @@
       </button>
       <div class="collapse navbar-collapse" id="navbarColor02">
         <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-          <!-- <li class="nav-item">
-            <a class="nav-link active" href="/">Главная
-              <span class="visually-hidden">(current)</span>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              Создание
             </a>
-          </li> -->
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" id="dropdown-new-tab" href="/">Вкладка</a></li>
+              <li><a class="dropdown-item" id="dropdown-create-status" href="/">Статус</a></li>
+              <li><a class="dropdown-item" id="dropdown-create-tag" href="/">Тэг</a></li>
+              <hr>
+              <li><a class="dropdown-item" id="dropdown-add-box">Ящик</a></li>
+            </ul>
+          </li>
           <li class="nav-item">
+            <a class="nav-link" aria-current="page" id="dropdown-check-history" href="/history">История выдачи</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" id="dropdown-open-parser" href="/parser">Парсер</a>
+          </li>
+
+          <!-- <li class="nav-item">
             <button id="dropdown-add-box" class="nav-link">Добавить ящик</button>
             
           </li>
           <li>
             <button id="dropdown-create-tag" class="nav-link">Создать тэг</button>
-          </li>
+          </li> -->
           <!-- <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="true" aria-expanded="false">Действия</a>
             <ul class="dropdown-menu">

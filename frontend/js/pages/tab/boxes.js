@@ -1413,17 +1413,6 @@ function announceSyncEvent(state, action, box, itemName, syncResult = null) {
     }
     return;
   }
-  if (state?.syncWorkerOnline === false) {
-    if (!state.syncWorkerWarningShown) {
-      showTopAlert(
-        "Синхронизация недоступна: запустите Redis воркер (например, `rq worker sync`).",
-        "warning",
-        6000
-      );
-      state.syncWorkerWarningShown = true;
-    }
-    return;
-  }
   notifySheetEvent(action, box, itemName);
 }
 

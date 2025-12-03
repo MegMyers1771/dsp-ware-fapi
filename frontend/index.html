@@ -37,26 +37,21 @@
       </button>
       <div class="collapse navbar-collapse" id="navbarColor02">
         <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-          
-          <li class="nav-item">
-            <button id="dropdown-new-tab" class="nav-link">Новая вкладка</button>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              Создание
+            </a>
+            <ul class="dropdown-menu">
+              <li><a class="dropdown-item" id="dropdown-new-tab" href="/">Вкладка</a></li>
+              <li><a class="dropdown-item" id="dropdown-create-status" href="/">Статус</a></li>
+              <li><a class="dropdown-item" id="dropdown-create-tag" href="/">Тэг</a></li>
+            </ul>
           </li>
-          
           <li class="nav-item">
-            <button id="dropdown-create-tag" class="nav-link">Создать тэг</button>
+            <a class="nav-link" aria-current="page" id="dropdown-check-history" href="/history">История выдачи</a>
           </li>
-
           <li class="nav-item">
-            <button id="dropdown-create-status" class="nav-link">Создать статус</button>
-          </li>
-
-
-          <li class="nav-item">
-            <button id="dropdown-check-history" class="nav-link">История выдачи</button>
-          </li>
-
-          <li class="nav-item">
-            <button id="dropdown-open-parser" class="nav-link">Парсер</button>
+            <a class="nav-link" id="dropdown-open-parser" href="/parser">Парсер</a>
           </li>
         </ul>
         <div class="d-flex align-items-center gap-2 ms-auto flex-wrap">
@@ -387,9 +382,12 @@
             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Закрыть"></button>
           </div>
           <div class="modal-body">
-            <div class="form-check form-switch mb-3">
+            <div class="form-check form-switch mb-1">
               <input class="form-check-input" type="checkbox" id="tabSyncEnableSwitch">
               <label class="form-check-label" for="tabSyncEnableSwitch">Включить синхронизацию с Google Sheets</label>
+            </div>
+            <div class="text-danger small d-none mb-3" id="tabSyncWorkerWarning">
+              redis воркер не активен
             </div>
             <div class="mb-3">
               <label class="form-label" for="tabSyncConfigSelect">Конфигурация</label>
@@ -400,9 +398,6 @@
               <label class="form-label" for="tabSyncSpreadsheetId">SPREADSHEET_ID</label>
               <input type="text" class="form-control" id="tabSyncSpreadsheetId" placeholder="1Abc...">
               <div class="form-text">Значение хранится в <code>sheets_config.json</code>.</div>
-            </div>
-            <div class="alert alert-warning small d-none" id="tabSyncWorkerWarning">
-              воркер redis не запущен, синхронизация недоступна
             </div>
           </div>
           <div class="modal-footer">

@@ -230,7 +230,6 @@ export async function openTabSyncModal(tab, { onTabsChanged } = {}) {
       }),
     ]);
     renderSyncConfigOptions(configs, settings.config_name);
-    updateSyncWorkerWarning(workerStatus?.rq_worker_online);
     if (syncModalState.enableSwitch) {
       syncModalState.enableSwitch.checked = !!settings.enable_sync;
     }
@@ -241,6 +240,7 @@ export async function openTabSyncModal(tab, { onTabsChanged } = {}) {
       syncModalState.spreadsheetInput.value = env.spreadsheet_id || "";
       syncModalState.spreadsheetInput.dataset.initialValue = env.spreadsheet_id || "";
     }
+    updateSyncWorkerWarning(workerStatus?.rq_worker_online);
     syncModalState.submitBtn?.removeAttribute("disabled");
     syncModalState.modal.show();
   } catch (err) {
@@ -349,13 +349,6 @@ async function handleTabSyncSubmit(event) {
     return;
   }
   syncModalState.configSelect?.classList.remove("is-invalid");
-  if (enableSync && syncModalState.workerOnline === false) {
-    showTopAlert(
-      "Воркер Redis для синхронизации не запущен — операции будут завершаться ошибкой, пока он не будет запущен.",
-      "warning",
-      7000
-    );
-  }
   const spreadsheetId = (syncModalState.spreadsheetInput?.value || "").trim();
   const initialId = syncModalState.spreadsheetInput?.dataset.initialValue || "";
 
@@ -381,11 +374,7 @@ async function handleTabSyncSubmit(event) {
     await syncModalState.onTabsChanged?.();
   } catch (err) {
     console.error("Ошибка сохранения синхронизации", err);
-    const suffix =
-      syncModalState.workerOnline === false
-        ? " Убедитесь, что запущен Redis воркер (например, `rq worker sync`)."
-        : "";
-    showTopAlert((err?.message || "Не удалось сохранить синхронизацию") + suffix, "danger");
+    showTopAlert(err?.message || "Не удалось сохранить синхронизацию", "danger");
   } finally {
     syncModalState.submitBtn?.removeAttribute("disabled");
   }
@@ -395,15 +384,16 @@ function updateSyncWorkerWarning(isOnline) {
   const normalized = !!isOnline;
   syncModalState.workerOnline = normalized;
   const warningEl = syncModalState.workerWarningEl;
+  const enableSwitch = syncModalState.enableSwitch;
   if (warningEl) {
-    if (normalized) {
-      warningEl.classList.add("d-none");
-    } else {
-      warningEl.classList.remove("d-none");
-    }
+    warningEl.classList.toggle("d-none", normalized);
   }
-  if (!normalized && !syncModalState.workerAlertShown) {
-    showTopAlert("Воркер Redis для синхронизации не запущен — операции будут завершаться ошибкой.", "warning", 7000);
-    syncModalState.workerAlertShown = true;
+  if (enableSwitch) {
+    if (normalized) {
+      enableSwitch.removeAttribute("disabled");
+    } else {
+      enableSwitch.checked = false;
+      enableSwitch.setAttribute("disabled", "disabled");
+    }
   }
 }

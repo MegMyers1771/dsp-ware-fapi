@@ -72,14 +72,6 @@ async function ensureSyncWorkerStatus(state) {
   try {
     const status = await fetchSyncWorkerStatus();
     state.syncWorkerOnline = !!status?.rq_worker_online;
-    if (state.syncWorkerOnline === false && !state.syncWorkerWarningShown) {
-      showTopAlert(
-        "Воркер Redis для синхронизации не запущен — изменения не попадут в Google Sheets, пока он не запущен.",
-        "warning",
-        8000
-      );
-      state.syncWorkerWarningShown = true;
-    }
   } catch (err) {
     console.warn("Не удалось проверить статус воркера синхронизации", err);
   }

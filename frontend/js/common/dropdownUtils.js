@@ -4,8 +4,16 @@ export function initDropdownAutoClose() {
   if (dropdownCloserAttached || typeof document === "undefined") return;
   dropdownCloserAttached = true;
 
+  activateDropdowns();
   document.addEventListener("click", handleDocumentClick);
   document.addEventListener("show.bs.dropdown", handleDropdownShow, true);
+}
+
+function activateDropdowns() {
+  if (typeof document === "undefined" || typeof bootstrap === "undefined" || !bootstrap.Dropdown) return;
+  document.querySelectorAll("[data-bs-toggle='dropdown']").forEach((toggle) => {
+    bootstrap.Dropdown.getOrCreateInstance(toggle);
+  });
 }
 
 function handleDocumentClick(event) {
