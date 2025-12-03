@@ -22,19 +22,22 @@ RQ_REDIS_URL=redis://localhost:6379/0 rq worker sync
 - расшарить сервис аккаунт на используемую таблицу
 
 ## Запуск через Docker Compose
-1. Скопируйте `.env.example` в `.env` и укажите секреты/пароли:
+```bash
+cp .env.example .env
+```
+1. Скопируйте `.env.example` в `.env` и заполните переменные:
    - `DB_USER`, `DB_PASSWORD`, `DB_NAME`
    - `SECRET_KEY`, `ACCESS_TOKEN_EXPIRE_MINUTES`
    - обязательно задайте `API_URL`, `API_UPSTREAM`, `PORT` (порт API внутри и снаружи контейнера), `NGINX_PORT` (если используете nginx), а также при необходимости скорректируйте `AUTO_CREATE_TABLES`, `DEV_NO_CACHE`, `RQ_REDIS_URL`.
-2. Соберите и поднимите сервисы: `docker compose up --build -d`.
+2. Подъем сервисов: `docker compose up --build -d`.
 3. Приложение будет доступно на `http://localhost:${PORT}` (значение `PORT` берётся из `.env`), PostgreSQL — на `localhost:5432`, Redis — на `localhost:6379`, воркер очереди запустится как отдельный сервис `worker`.
 4. Чтобы перезапустить только воркер: `docker compose restart worker`. Чтобы посмотреть его логи: `docker compose logs -f worker`.
 
 ### Веб-просмотр логов
-Запускается сервис `logs` (Dozzle). Открыть в браузере: `http://localhost:9999` и выбрать контейнер `dsp-ware` (API) или любой другой из списка. Если нужно больше строк при загрузке, установите `DOZZLE_TAILSIZE` в `.env`.
+Запускается сервис Dozzle. Открыть в браузере: `http://localhost:9999` и выбрать контейнер `dsp-ware` (API) или любой другой из списка.
 
 ### Nginx-прокси
 Сервис `nginx` проксирует домен из `NGINX_SERVER_NAME` на `API_UPSTREAM`. Порты берутся из `.env`: слушающий порт — `NGINX_PORT`, апстрим — `API_UPSTREAM`. Перед запуском пропишите реальные значения домена и портов в `.env`. После `docker compose up -d` Nginx доступен на `NGINX_PORT` и раздаёт API и статические файлы.
 
 ### История выдачи (XLSX)
-Файл истории сохраняется внутри контейнера по пути `HISTORY_XLSX_PATH` (по умолчанию `/app/data/issue_history.xlsx`) и монтируется в том `historydata`, так что загрузка `/issues/export` отдаёт файл из контейнера. При необходимости задайте другой путь в `.env`.
+Файл истории сохраняется внутри контейнера по пути `HISTORY_XLSX_PATH` (по умолчанию `/app/data/issue_history.xlsx`) и монтируется в том `historydata`, так что загрузка `/issues/export` отдаёт файл из контейнера.
