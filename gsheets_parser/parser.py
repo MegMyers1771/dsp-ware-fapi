@@ -77,8 +77,8 @@ def _update_sheet_cell(service, spreadsheet_id: str, worksheet_name: str, column
 # DATA VALIDATION PARSER
 ####################################
 
-def get_data_validation_values(spreadsheet_id, range_name, sheet_name, creds_source):
-    service = build_sheets_service(creds_source)
+def get_data_validation_values(spreadsheet_id, range_name, sheet_name, creds_source, service=None):
+    service = service or build_sheets_service(creds_source)
 
     # 1. Определяем sheetId вкладки по имени
     metadata = service.spreadsheets().get(
@@ -351,6 +351,61 @@ def extract_box_structure(values, config):
 
     return boxes
 
+
+def _collect_reserved_values(df, config_data, *, creds_source, service, spreadsheet_id, sheet_name):
+    reserved_values = {}
+
+    # start with explicitly provided allowed values (if any)
+    direct_allowed = config_data.get("allowed_values") or config_data.get("reserved") or {}
+    if isinstance(direct_allowed, dict):
+        for field, values in direct_allowed.items():
+            if values is None:
+                continue
+            reserved_values[field] = list(values)
+
+    header_lookup = {}
+    header_lookup_norm = {}
+    for idx, col in enumerate(list(df.columns)):
+        key = str(col).strip()
+        if not key:
+            continue
+        header_lookup[key] = idx
+        header_lookup_norm[key.lower()] = idx
+    skip_tokens = {"имя", "name", "товар", "кол-во", "количество", "qty", "кол-во."}
+
+    for field, column_name in (config_data.get("fields") or {}).items():
+        field_token = str(field).strip().lower()
+        if field_token in skip_tokens:
+            continue
+        column_key = str(column_name).strip()
+        if not column_key:
+            continue
+
+        col_idx = header_lookup.get(column_key)
+        if col_idx is None:
+            col_idx = header_lookup_norm.get(column_key.lower())
+        if col_idx is None:
+            continue
+        try:
+            column_letter = _column_index_to_letter(col_idx)
+        except Exception:
+            continue
+        range_name = f"{column_letter}8:{column_letter}10"
+        try:
+            values = get_data_validation_values(
+                spreadsheet_id,
+                range_name,
+                sheet_name,
+                creds_source,
+                service=service,
+            )
+        except Exception:
+            values = []
+        if values:
+            reserved_values[field] = values
+
+    return reserved_values
+
 ####################################
 # RUN
 ####################################
@@ -368,22 +423,14 @@ def main(config, creds_override=None):
     service = build_sheets_service(creds_source)
 
     print("Extracting reserved values...")
-    reserved_values = {}
-    direct_allowed = config_data.get("allowed_values") or config_data.get("reserved") or {}
-    if isinstance(direct_allowed, dict):
-        for field, values in direct_allowed.items():
-            if values is None:
-                continue
-            reserved_values[field] = list(values)
-
-    for field, range_ in (config_data.get("reserved_ranges") or {}).items():
-        reserved_values[field] = get_data_validation_values(
-            spreadsheet_id,
-            range_,
-            sheet_name,
-            creds_source
-        )
-        # print(f"{field}: {reserved_values[field]}")
+    reserved_values = _collect_reserved_values(
+        df,
+        config_data,
+        creds_source=creds_source,
+        service=service,
+        spreadsheet_id=spreadsheet_id,
+        sheet_name=sheet_name,
+    )
 
     print("Parsing boxes...")
     boxes = parse_boxes(
