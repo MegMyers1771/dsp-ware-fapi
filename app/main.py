@@ -91,6 +91,10 @@ async def serve_history():
 async def serve_parser():
     return FileResponse(os.path.join(FRONTEND_DIR, "parser.html"))
 
+@app.get("/instruction")
+async def serve_instruction():
+    return FileResponse(os.path.join(FRONTEND_DIR, "instruction.html"))
+
 
 @app.get("/config.js")
 async def serve_frontend_config():
