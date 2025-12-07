@@ -8,6 +8,7 @@ import { createTabsTable } from "./tabsTable.js";
 import { initTabActions, openEditTabModal, openTabSyncModal } from "./tabActions.js";
 import { initStatusActions } from "./statusActions.js";
 import { createIndexState } from "./state.js";
+import { getCapacityState } from "../../common/capacity.js";
 
 export async function bootstrapIndexPage() {
   const state = createIndexState();
@@ -32,6 +33,7 @@ export async function bootstrapIndexPage() {
 
   wireQuickActions(tagManager);
   wireAdvancedMode(state, tagManager);
+  handlePendingAction(tagManager);
 
   try {
     await tagManager.refresh(true, { silent: true });
@@ -40,6 +42,43 @@ export async function bootstrapIndexPage() {
   }
   tagManager.renderPills();
   await tabsTable.render();
+}
+
+function handlePendingAction(tagManager) {
+  let action = null;
+  try {
+    action = sessionStorage.getItem("dsp_pending_action");
+    sessionStorage.removeItem("dsp_pending_action");
+  } catch {
+    action = null;
+  }
+  if (!action) return;
+
+  switch (action) {
+    case "create-tab": {
+      const modal = document.getElementById("createTabModal");
+      if (modal) {
+        bootstrap.Modal.getOrCreateInstance(modal).show();
+        setTimeout(() => document.getElementById("tabName")?.focus(), 100);
+      }
+      break;
+    }
+    case "create-status": {
+      const trigger = document.getElementById("dropdown-create-status");
+      if (trigger) {
+        trigger.dispatchEvent(new Event("click", { bubbles: true, cancelable: true }));
+      }
+      break;
+    }
+    case "create-tag": {
+      if (tagManager) {
+        tagManager.showCreateTagOffcanvas().catch((err) => console.warn("Автооткрытие тега не удалось", err));
+      }
+      break;
+    }
+    default:
+      break;
+  }
 }
 
 function collectElements() {
@@ -89,13 +128,13 @@ function wireQuickActions(tagManager) {
     });
   }
 
-  const parserBtn = document.getElementById("dropdown-open-parser");
-  if (parserBtn) {
-    parserBtn.addEventListener("click", (event) => {
-      event.preventDefault();
-      window.location.href = "/parser";
-    });
-  }
+  // const parserBtn = document.getElementById("dropdown-open-parser");
+  // if (parserBtn) {
+  //   parserBtn.addEventListener("click", (event) => {
+  //     event.preventDefault();
+  //     window.location.href = "/parser";
+  //   });
+  // }
 }
 
 function wireAdvancedMode(state, tagManager) {
@@ -114,21 +153,20 @@ function wireAdvancedMode(state, tagManager) {
     refreshBtn?.removeAttribute("disabled");
   };
 
-  btn.addEventListener("click", async (event) => {
-    event.preventDefault();
+  const openWithConfirm = async () => {
     const confirmed = confirm(
       "При активации расширенного режима будет идти подгрузка данных из БД. Может занять некоторое время. Продолжить?"
     );
     if (!confirmed) return;
     await trigger();
-  });
+  };
 
   const refreshBtn = document.getElementById("advancedRefreshBtn");
   refreshBtn?.addEventListener("click", async () => {
     await trigger();
   });
 
-  window.__openAdvancedMode = trigger;
+  window.__openAdvancedMode = openWithConfirm;
 
   const params = new URLSearchParams(window.location.search);
   if (params.get("advanced") === "1" || params.has("advanced")) {
@@ -139,6 +177,7 @@ function wireAdvancedMode(state, tagManager) {
 let advancedLoading = false;
 
 async function renderAdvancedMode(state, tagManager) {
+
   if (advancedLoading) return;
   advancedLoading = true;
 
@@ -246,6 +285,13 @@ function setProgress(progressEl, labelEl, value, label) {
   labelEl.textContent = label;
 }
 
+function calculateItemsTotal(items = []) {
+  return items.reduce((acc, item) => {
+    const qty = Number(item?.qty);
+    return acc + (Number.isFinite(qty) && qty > 0 ? qty : 1);
+  }, 0);
+}
+
 function buildAdvancedBoxesTable(boxes, itemsByBox, tabFields, state) {
   if (!boxes.length) {
     return `<div class="text-muted">Ящиков нет</div>`;
@@ -256,6 +302,8 @@ function buildAdvancedBoxesTable(boxes, itemsByBox, tabFields, state) {
 
   boxes.forEach((box) => {
     const items = itemsByBox[box.id] || [];
+    const itemsTotal = calculateItemsTotal(items);
+    const capacityState = getCapacityState(itemsTotal, box.capacity);
     const hasSerialColumn = items.some((item) => Boolean(normalizeSerials(item.serial_number)));
 
     const boxHeaders = [
@@ -272,8 +320,8 @@ function buildAdvancedBoxesTable(boxes, itemsByBox, tabFields, state) {
     itemHeaders.push('<th style="width:120px" class="text-center">Кол-во</th>');
     itemFieldNames.forEach((name) => itemHeaders.push(`<th>${escapeHtml(name)}</th>`));
 
-    const capacity = Number.isFinite(box.capacity) ? box.capacity : null;
-    const capacityLabel = capacity ? `${items.length} / ${capacity}` : `${items.length}`;
+    const capacityLabel = capacityState.label ? escapeHtml(capacityState.label) : "";
+    const capacityClass = capacityState.className;
 
     parts.push(`
       <div class="table-responsive mb-2">
@@ -286,7 +334,7 @@ function buildAdvancedBoxesTable(boxes, itemsByBox, tabFields, state) {
               <td class="tag-fill-cell">${renderTagFillCell(box.tag_ids, { tagLookup: state.tagStore.getById, emptyText: "Нет" })}</td>
               <td>${escapeHtml(box.name || `Ящик #${box.id}`)}</td>
               <td>${escapeHtml(box.description || "")}</td>
-              <td class="text-center">${escapeHtml(capacityLabel)}</td>
+              <td class="text-center ${capacityClass}">${capacityLabel}</td>
             </tr>
           </tbody>
         </table>
@@ -303,7 +351,7 @@ function buildAdvancedBoxesTable(boxes, itemsByBox, tabFields, state) {
       .map((item) => {
         const meta = item.metadata_json || item.metadata || {};
         const serials = normalizeSerials(item.serial_number);
-        const qty = Number.isFinite(item.qty) ? item.qty : item.qty ?? "";
+        const qty = Number.isFinite(item.qty) && item.qty > 0 ? item.qty : 1;
         return `
           <tr class="table-active">
             <td class="tag-fill-cell">${renderTagFillCell(item.tag_ids, { tagLookup: state.tagStore.getById, emptyText: "—" })}</td>

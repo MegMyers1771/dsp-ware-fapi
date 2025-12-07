@@ -12,6 +12,7 @@
     #advancedModeWrapper table.advanced-table th {
       border: 1px solid rgba(185, 177, 177, 0.08);
     }
+    .text-orange { color: #fd7e14 !important; }
   </style>
   
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -50,29 +51,12 @@
           <li class="nav-item">
             <a class="nav-link" aria-current="page" id="dropdown-check-history" href="/history">История выдачи</a>
           </li>
-          <li class="nav-item">
+          <!-- <li class="nav-item">
             <a class="nav-link" id="dropdown-open-parser" href="/parser">Парсер</a>
-          </li>
+          </li> -->
         </ul>
         <div class="d-flex align-items-center gap-2 ms-auto flex-wrap">
-          <div class="nav-item dropdown">
-            <a
-              class="nav-link dropdown-toggle"
-              href="#"
-              role="button"
-              id="currentUserDropdown"
-              data-bs-toggle="dropdown"
-              aria-expanded="false"
-            >
-              (Авторизация)
-            </a>
-            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="currentUserDropdown">
-              <li><button type="button" id="userManagementBtn" class="dropdown-item d-none">Управление пользователями</button></li>
-              <li><button type="button" id="advancedModeBtn" class="dropdown-item d-none">Расширенный режим</button></li>
-              <li><button type="button" id="loginBtn" class="dropdown-item">Войти</button></li>
-              <li><button type="button" id="logoutBtn" class="dropdown-item text-danger d-none">Выйти</button></li>
-            </ul>
-          </div>
+          <div id="userDropdownPlaceholder"></div>
         </div>
       </div>
     </div>
@@ -252,35 +236,6 @@
     </div>
   </div>
 
-  <!-- Create Status Modal -->
-  <div class="modal fade" id="createStatusModal" tabindex="-1" aria-labelledby="createStatusModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-      <div class="modal-content">
-        <form id="createStatusForm">
-          <div class="modal-header">
-            <h5 class="modal-title" id="createStatusModalLabel">Создать статус</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <div class="modal-body">
-            <div class="mb-3">
-              <label class="form-label" for="statusName">Название статуса</label>
-              <input id="statusName" class="form-control" placeholder="Например, В работе" required>
-            </div>
-            <div class="mb-3">
-              <label class="form-label" for="statusColor">Цвет</label>
-              <input id="statusColor" type="color" class="form-control form-control-color" value="#198754">
-            </div>
-            <div class="status-preview-title text-muted small mb-2">Существующие статусы</div>
-            <div id="statusListContainer" class="d-flex flex-wrap gap-2"></div>
-          </div>
-          <div class="modal-footer">
-            <button type="submit" class="btn btn-success">Создать статус</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-
   <!-- Attach Tag Modal -->
   <div class="modal fade" id="attachTagModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog">
@@ -306,36 +261,6 @@
           </div>
           <div class="modal-footer">
             <button type="submit" class="btn btn-primary" id="attachTagSubmit">Привязать</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-
-  <!-- Create Modal -->
-  <div class="modal fade" id="createTabModal" tabindex="-1" aria-labelledby="createTabModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-      <div class="modal-content">
-        <form id="createTabForm">
-          <div class="modal-header">
-            <h5 class="modal-title">Содать новую вкладку</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body">
-            <div class="mb-3">
-              <label class="form-label">Название вкладки</label>
-              <input id="tabName" class="form-control" required>
-            </div>
-            <h6>Поля</h6>
-            <div id="fieldsContainer" data-use-pills="1" data-chip-target="allowed"></div>
-            <button type="button" id="addFieldBtn" class="btn btn-outline-secondary btn-sm mt-2">Добавить поле</button>
-            <div class="form-check form-switch mt-3">
-              <input class="form-check-input" type="checkbox" id="tabEnablePos" checked>
-              <label class="form-check-label" for="tabEnablePos">Включить POS (ручной порядок в ящиках)</label>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button type="submit" class="btn btn-success">Создать вкладку</button>
           </div>
         </form>
       </div>

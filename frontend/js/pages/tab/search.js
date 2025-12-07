@@ -273,7 +273,7 @@ function renderSearchResults(
   });
 }
 
-function hasActiveFilters(filters = {}) {
+export function hasActiveFilters(filters = {}) {
   if (!filters || typeof filters !== "object") return false;
   if (Number.isFinite(Number(filters.tag_id)) && Number(filters.tag_id) > 0) return true;
   return Object.entries(filters).some(([key, value]) => {

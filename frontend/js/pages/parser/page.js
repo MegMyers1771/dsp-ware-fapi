@@ -19,28 +19,15 @@ const EXAMPLE_FIELDS = {
   Вендор: "Вендор",
 };
 
-const EXAMPLE_ALLOWED_RANGES = {
-  Форм: "D6:D7",
-  Инт: "E6:E7",
-  Объем: "F6:F7",
-  Вендор: "G6:G7",
-  RPM: "H6:H7",
-  КЕШ: "I6:I7",
-};
-
 export async function bootstrapParserPage() {
   const state = {
     configs: [],
     loading: false,
-    allowedRanges: [],
     envInfo: null,
   };
 
   const form = document.getElementById("parserConfigForm");
   const configsBody = document.getElementById("configsTabsBody");
-  const allowedModalEl = document.getElementById("allowedValuesModal");
-  const allowedModal = allowedModalEl ? new bootstrap.Modal(allowedModalEl) : null;
-  const allowedValuesList = document.getElementById("allowedValuesList");
 
   document.getElementById("parserGoHomeBtn")?.addEventListener("click", () => {
     window.location.href = "/";
@@ -50,29 +37,16 @@ export async function bootstrapParserPage() {
     fillExampleConfig(state);
   });
   document.getElementById("addFieldBtn")?.addEventListener("click", () => addFieldRow());
-  document.getElementById("openAllowedValuesModal")?.addEventListener("click", () => {
-    openAllowedModal(state, allowedModal, allowedValuesList);
-  });
-  document.getElementById("addAllowedValueBtn")?.addEventListener("click", () => {
-    addAllowedValueRow(allowedValuesList);
-  });
-  document.getElementById("allowedValuesForm")?.addEventListener("submit", (event) =>
-    handleAllowedFormSubmit(event, state, allowedModal, allowedValuesList)
-  );
-
   form?.addEventListener("submit", (event) => handleConfigFormSubmit(event, state));
   form?.addEventListener("reset", () => {
     setTimeout(() => {
       resetFieldRows();
-      state.allowedRanges = [];
-      renderAllowedSummary(state);
     }, 0);
   });
 
   configsBody?.addEventListener("click", (event) => handleConfigAction(event, state));
 
   resetFieldRows();
-  renderAllowedSummary(state);
   setupEnvInputs(state);
   setupCredentialsUpload(state);
   setupConfigImport(state);
@@ -112,7 +86,7 @@ function renderConfigs(configs) {
         ? `
             <div class="small text-success">Ящиков: ${config.parsed_boxes_count || 0}</div>
             <div class="small text-success">Айтемов: ${config.parsed_items_count || 0}</div>
-            <div class="small">${config.parsed_has_allowed_values ? "Allowed: ✅" : "Allowed: —"}</div>
+            <div class="small">${config.parsed_has_allowed_values ? "Валидации: ✅" : "Валидации: —"}</div>
           `
         : `<div class="text-muted small">Парсинг не выполнен</div>`;
       return `
@@ -123,7 +97,6 @@ function renderConfigs(configs) {
             <div class="text-muted small">POS: ${config.enable_pos ? "вкл" : "выкл"}</div>
           </td>
           <td class="text-center">${config.fields_count}</td>
-          <td class="text-center">${config.reserved_ranges_count}</td>
           <td class="text-center">${parseStatus}</td>
           <td class="text-center">
             <div class="btn-group btn-group-sm">
@@ -189,11 +162,6 @@ async function openConfigPreview(configName) {
           ([field, column]) => `<div><strong>${escapeHtml(field)}</strong> → ${escapeHtml(column)}</div>`
         )
         .join("");
-      const reservedListHtml = Object.entries(config.reserved_ranges || {})
-        .map(
-          ([field, range]) => `<div><strong>${escapeHtml(field)}</strong> → ${escapeHtml(range)}</div>`
-        )
-        .join("");
 
       contentEl.innerHTML = `
         <div class="mb-3">
@@ -204,10 +172,6 @@ async function openConfigPreview(configName) {
         <div class="mb-3">
           <h6>Поля</h6>
           ${fieldsListHtml || "<div class='text-muted'>Поля не заданы</div>"}
-        </div>
-        <div>
-          <h6>Allowed ranges</h6>
-          ${reservedListHtml || "<div class='text-muted'>Диапазоны не заданы</div>"}
         </div>
       `;
     }
@@ -467,12 +431,6 @@ function applyImportedConfig(config, state) {
   if (config?.fields && typeof config.fields === "object") {
     renderFieldsFromMap(config.fields);
   }
-  const reservedEntries = Object.entries(config?.reserved_ranges || {}).map(([field, range]) => ({
-    field,
-    range,
-  }));
-  state.allowedRanges = reservedEntries;
-  renderAllowedSummary(state);
 }
 
 async function handleConfigFormSubmit(event, state) {
@@ -499,7 +457,6 @@ async function handleConfigFormSubmit(event, state) {
     worksheet_name: worksheetName,
     box_column: boxColumn,
     fields,
-    reserved_ranges: buildAllowedPayload(state.allowedRanges),
     enable_pos: enablePos,
   };
   const submitBtn = document.getElementById("parserConfigSaveBtn");
@@ -535,16 +492,6 @@ function gatherFieldMap() {
     }
   });
   return fields;
-}
-
-function buildAllowedPayload(allowedRanges) {
-  const payload = {};
-  allowedRanges.forEach(({ field, range }) => {
-    if (field && range) {
-      payload[field] = range;
-    }
-  });
-  return payload;
 }
 
 function setFormStatus(message, type = "info") {
@@ -607,8 +554,6 @@ function fillExampleConfig(state) {
   if (boxInput) boxInput.value = "Ящик";
   if (posInput) posInput.checked = true;
   renderFieldsFromMap(EXAMPLE_FIELDS);
-  state.allowedRanges = Object.entries(EXAMPLE_ALLOWED_RANGES).map(([field, range]) => ({ field, range }));
-  renderAllowedSummary(state);
 }
 
 function renderFieldsFromMap(mapping) {
@@ -619,83 +564,6 @@ function renderFieldsFromMap(mapping) {
     return;
   }
   entries.forEach(([key, value]) => addFieldRow(key, value));
-}
-
-function renderAllowedSummary(state) {
-  const summary = document.getElementById("allowedRangesSummary");
-  if (!summary) return;
-  if (!state.allowedRanges.length) {
-    summary.textContent = "Нет диапазонов";
-    return;
-  }
-  summary.textContent = `Диапазонов: ${state.allowedRanges.length}`;
-}
-
-function openAllowedModal(state, modal, listEl) {
-  if (!listEl || !modal) return;
-  renderAllowedModalRows(state, listEl);
-  modal.show();
-}
-
-function renderAllowedModalRows(state, listEl) {
-  listEl.innerHTML = "";
-  if (!state.allowedRanges.length) {
-    const placeholder = document.createElement("div");
-    placeholder.className = "allowed-placeholder text-muted small";
-    placeholder.textContent = "Диапазонов пока нет";
-    listEl.appendChild(placeholder);
-    return;
-  }
-  state.allowedRanges.forEach(({ field, range }) => addAllowedValueRow(listEl, field, range));
-}
-
-function addAllowedValueRow(listEl, field = "", range = "") {
-  if (!listEl) return;
-  const placeholder = listEl.querySelector(".allowed-placeholder");
-  if (placeholder) placeholder.remove();
-  const row = document.createElement("div");
-  row.className = "d-flex flex-wrap gap-2 align-items-start allowed-row mb-2";
-  const fieldInput = document.createElement("input");
-  fieldInput.type = "text";
-  fieldInput.className = "form-control allowed-field";
-  fieldInput.placeholder = "Поле";
-  fieldInput.value = field;
-  fieldInput.style.flex = "1 1 200px";
-  const rangeInput = document.createElement("input");
-  rangeInput.type = "text";
-  rangeInput.className = "form-control allowed-range";
-  rangeInput.placeholder = "Диапазон (например G6:G10)";
-  rangeInput.value = range;
-  rangeInput.style.flex = "1 1 200px";
-  const removeBtn = document.createElement("button");
-  removeBtn.type = "button";
-  removeBtn.className = "btn btn-outline-danger btn-sm";
-  removeBtn.textContent = "Удалить";
-  removeBtn.addEventListener("click", () => row.remove());
-  row.appendChild(fieldInput);
-  row.appendChild(rangeInput);
-  row.appendChild(removeBtn);
-  listEl.appendChild(row);
-}
-
-function handleAllowedFormSubmit(event, state, modal, listEl) {
-  event.preventDefault();
-  if (!listEl) return;
-  const rows = [];
-  listEl.querySelectorAll(".allowed-row").forEach((row) => {
-    const fieldInput = row.querySelector(".allowed-field");
-    const rangeInput = row.querySelector(".allowed-range");
-    const field =
-      fieldInput instanceof HTMLInputElement ? fieldInput.value.trim() : "";
-    const range =
-      rangeInput instanceof HTMLInputElement ? rangeInput.value.trim() : "";
-    if (field && range) {
-      rows.push({ field, range });
-    }
-  });
-  state.allowedRanges = rows;
-  renderAllowedSummary(state);
-  modal?.hide();
 }
 
 function setupJsonImportTrigger(buttonId, inputId, handler) {

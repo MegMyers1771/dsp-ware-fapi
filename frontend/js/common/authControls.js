@@ -26,6 +26,7 @@ export async function initAuthControls() {
   const loginModal = loginModalEl ? new bootstrap.Modal(loginModalEl) : null;
   const userManagementBtn = document.getElementById("userManagementBtn");
   const advancedModeBtn = document.getElementById("advancedModeBtn");
+  const parserBtn = document.getElementById("userParserBtn");
 
   loginBtn?.addEventListener("click", () => {
     if (loginForm) loginForm.reset();
@@ -62,12 +63,21 @@ export async function initAuthControls() {
   });
 
   userManagementBtn?.addEventListener("click", () => openUsersModal());
-  advancedModeBtn?.addEventListener("click", () => {
-    if (typeof window.__openAdvancedMode === "function") {
-      window.__openAdvancedMode();
+  advancedModeBtn?.addEventListener("click", (event) => {
+    event.preventDefault();
+    const handler = typeof window.__openAdvancedMode === "function" ? window.__openAdvancedMode : null;
+    if (handler) {
+      handler();
     } else {
+      const confirmed = confirm(
+        "При активации расширенного режима будет идти подгрузка данных из БД. Может занять некоторое время. Продолжить?"
+      );
+      if (!confirmed) return;
       window.location.href = "/?advanced=1";
     }
+  });
+  parserBtn?.addEventListener("click", () => {
+    window.location.href = "/parser";
   });
   setupUserManagementModal();
 
@@ -102,6 +112,7 @@ function updateAuthUI() {
   const userDropdown = document.getElementById("currentUserDropdown");
   const userMgmtBtn = document.getElementById("userManagementBtn");
   const advancedModeBtn = document.getElementById("advancedModeBtn");
+  const parserBtn = document.getElementById("userParserBtn");
 
   if (currentUser) {
     loginBtn?.classList.add("d-none");
@@ -112,9 +123,11 @@ function updateAuthUI() {
     if (currentUser.role === "admin") {
       userMgmtBtn?.classList.remove("d-none");
       advancedModeBtn?.classList.remove("d-none");
+      parserBtn?.classList.remove("d-none");
     } else {
       userMgmtBtn?.classList.add("d-none");
       advancedModeBtn?.classList.add("d-none");
+      parserBtn?.classList.add("d-none");
     }
   } else {
     loginBtn?.classList.remove("d-none");
@@ -124,6 +137,7 @@ function updateAuthUI() {
     }
     userMgmtBtn?.classList.add("d-none");
     advancedModeBtn?.classList.add("d-none");
+    parserBtn?.classList.add("d-none");
   }
 }
 

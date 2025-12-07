@@ -18,12 +18,13 @@ import { renderTagFillCell } from "../../common/tagTemplates.js";
 import { getDefaultItemFormMode, DEFAULT_BOXES_PAGE_SIZE } from "./state.js";
 import { getCurrentUser } from "../../common/authControls.js";
 import { createPaginationController } from "../../common/pagination.js";
+import { getCapacityState } from "../../common/capacity.js";
 import {
   setupBoxTableScrollSync,
   toggleBoxModalShift,
   setupBoxModalResizeToggle,
 } from "./uiHelpers.js";
-import { handleSearch, setupSearchFilters, refreshSearchResultsView } from "./search.js";
+import { handleSearch, setupSearchFilters, refreshSearchResultsView, hasActiveFilters } from "./search.js";
 
 const BOXES_PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
 
@@ -47,6 +48,27 @@ function parseSerials(value) {
     .split(",")
     .map((val) => val.trim())
     .filter(Boolean);
+}
+
+function normalizeItemsCount(raw) {
+  const num = Number(raw);
+  if (!Number.isFinite(num) || num < 0) return 0;
+  return num;
+}
+
+function calculateItemsTotal(items = []) {
+  return items.reduce((acc, current) => {
+    const qty = Number(current?.qty);
+    return acc + (Number.isFinite(qty) && qty > 0 ? qty : 1);
+  }, 0);
+}
+
+function applySearchButtonState(filters) {
+  const searchBtn = document.getElementById("searchBtn");
+  if (!searchBtn) return;
+  const filtersActive = hasActiveFilters(filters);
+  searchBtn.classList.remove("btn-secondary", "btn-outline-success");
+  searchBtn.classList.add(filtersActive ? "btn-outline-success" : "btn-secondary");
 }
 
 export function createBoxesController(state, elements) {
@@ -114,13 +136,6 @@ export function createBoxesController(state, elements) {
   });
   state.ui.issueFormController = issueFormController;
 
-  const rerunLastSearch = async () => {
-    if (state.lastSearchQuery === undefined || state.lastSearchQuery === null) return;
-    await handleSearch(state, state.lastSearchQuery, state.searchFilters, {
-      openBox: (boxId, highlightIds) => openBoxModal(state, tagManagerApi, boxId, highlightIds),
-    });
-  };
-
   const descriptionSwitch = document.getElementById("isDescriptionFull");
   if (descriptionSwitch) {
     descriptionSwitch.checked = Boolean(state.isDescriptionFull);
@@ -132,15 +147,17 @@ export function createBoxesController(state, elements) {
     });
   }
 
+  const updateSearchBtnState = () => applySearchButtonState(state.searchFilters);
   const filtersController = setupSearchFilters(state, {
     modalEl: elements.searchFiltersModal,
     formEl: elements.searchFiltersForm,
     fieldsContainer: elements.searchFiltersFields,
     resetBtn: elements.searchFiltersResetBtn,
-    onFiltersChanged: rerunLastSearch,
+    onFiltersChanged: updateSearchBtnState,
   });
   state.ui.searchFiltersController = filtersController;
   state.ui.searchResultsEl = elements.searchResultsContainer ?? document.getElementById("searchResults");
+  updateSearchBtnState();
 
   const boxesPagination = createPaginationController({
     elements: {
@@ -301,19 +318,11 @@ async function renderBoxes(state, tagManagerApi, options = {}) {
   visibleBoxes.forEach((box) => {
     const tr = document.createElement("tr");
     tr.dataset.boxId = box.id;
-    const parsedItemsCount = Number(box.items_count);
-    const itemsCount = Number.isFinite(parsedItemsCount) ? parsedItemsCount : 0;
+    const itemsCount = normalizeItemsCount(box.items_count);
     const capacity = box.capacity != null ? Number(box.capacity) : null;
-    let capacityClass = "";
-    let itemsLabel = escapeHtml(itemsCount);
-    if (capacity && capacity > 0) {
-      const ratio = itemsCount / capacity;
-      if (ratio < 0.5) capacityClass = "text-success";
-      else if (ratio < 0.75) capacityClass = "text-warning";
-      else if (ratio < 1) capacityClass = "text-orange";
-      else capacityClass = "text-danger";
-      itemsLabel = `${escapeHtml(itemsCount)} / ${escapeHtml(capacity)}`;
-    }
+    const capacityState = getCapacityState(itemsCount, capacity);
+    const capacityClass = capacityState.className;
+    const itemsLabel = escapeHtml(capacityState.label);
 
     tr.innerHTML = `
       
@@ -364,6 +373,8 @@ async function renderBoxes(state, tagManagerApi, options = {}) {
       const boxLabel = box.name ? `"${box.name}"` : `#${box.id}`;
       const confirmed = confirm(`Удалить ящик ${boxLabel}?`);
       if (!confirmed) return;
+      const confirmedTwice = confirm(`Удаление ящика ${boxLabel}. Продолжить?`);
+      if (!confirmedTwice) return;
       try {
         await deleteBoxApi(box.id);
         state.boxesData = (state.boxesData || []).filter((entry) => Number(entry.id) !== Number(box.id));
@@ -399,6 +410,7 @@ async function openBoxModal(state, tagManagerApi, boxId, highlightItems = null, 
       id: normalizedBoxId,
       tab_id: fallbackTabId ?? state.tabId,
     };
+  const totalQuantity = calculateItemsTotal(items);
 
   if (!state.currentTabFields.length) {
     try {
@@ -448,10 +460,6 @@ async function openBoxModal(state, tagManagerApi, boxId, highlightItems = null, 
 
     const esc = (value) => escapeHtml(value);
     const minWidth = Math.max(400, headers.length * 120);
-    const totalQuantity = items.reduce(
-      (acc, current) => acc + (typeof current.qty === "number" && current.qty > 0 ? current.qty : 1),
-      0
-    );
 
     const tableHtml = `
       <div class="box-view-zoom-wrapper">
@@ -653,6 +661,16 @@ async function openBoxModal(state, tagManagerApi, boxId, highlightItems = null, 
         }
       });
     });
+  }
+
+  const capacityBadge = document.getElementById("boxCapacityIndicator");
+  if (capacityBadge) {
+    const capacityState = getCapacityState(totalQuantity, targetBox?.capacity);
+    capacityBadge.className = "badge box-capacity-indicator";
+    capacityBadge.textContent = capacityState.label ? `Заполненность: ${capacityState.label}` : "";
+    if (capacityState.className) {
+      capacityBadge.classList.add(capacityState.className);
+    }
   }
 
   applyBoxViewZoom(state);

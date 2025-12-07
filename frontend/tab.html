@@ -50,9 +50,9 @@
           <li class="nav-item">
             <a class="nav-link" aria-current="page" id="dropdown-check-history" href="/history">История выдачи</a>
           </li>
-          <li class="nav-item">
+          <!-- <li class="nav-item">
             <a class="nav-link" id="dropdown-open-parser" href="/parser">Парсер</a>
-          </li>
+          </li> -->
 
           <!-- <li class="nav-item">
             <button id="dropdown-add-box" class="nav-link">Добавить ящик</button>
@@ -80,24 +80,7 @@
           <button id="openHiddenBoxBtn" class="btn btn-outline-warning" type="button">Открыть</button>
         </form>
         <div class="d-flex align-items-center gap-2 ms-auto flex-wrap">
-          <div class="nav-item dropdown">
-            <a
-              class="nav-link dropdown-toggle"
-              href="#"
-              role="button"
-              id="currentUserDropdown"
-              data-bs-toggle="dropdown"
-              aria-expanded="false"
-            >
-              (Авторизация)
-            </a>
-            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="currentUserDropdown">
-              <li><button type="button" id="userManagementBtn" class="dropdown-item d-none">Управление пользователями</button></li>
-              <li><button type="button" id="advancedModeBtn" class="dropdown-item d-none">Расширенный режим</button></li>
-              <li><button type="button" id="loginBtn" class="dropdown-item">Войти</button></li>
-              <li><button type="button" id="logoutBtn" class="dropdown-item text-danger d-none">Выйти</button></li>
-            </ul>
-          </div>
+          <div id="userDropdownPlaceholder"></div>
         </div>
       </div>
     </div>
@@ -449,6 +432,7 @@
         <div class="modal-header box-view-header">
           <div class="box-view-header-main d-flex align-items-center gap-3 flex-wrap">
             <h5 class="modal-title mb-0">Содержимое ящика</h5>
+            <span id="boxCapacityIndicator" class="badge text-bg-secondary box-capacity-indicator d-none"></span>
             <div class="d-flex align-items-center gap-2 box-view-zoom-controls flex-wrap">
               <label for="boxViewZoomInput" class="form-label mb-0 small text-muted">Масштаб</label>
               <input

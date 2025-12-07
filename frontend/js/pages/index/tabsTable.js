@@ -1,6 +1,7 @@
 import { deleteTab, fetchTabs } from "../../api.js";
 import { escapeHtml } from "../../common/dom.js";
 import { renderTagFillCell } from "../../common/tagTemplates.js";
+import { showTopAlert } from "../../common/alerts.js";
 
 export function createTabsTable(state, { onAttachTag, onEditTab, onSyncTab } = {}) {
   async function renderTabs() {
@@ -84,9 +85,23 @@ export function createTabsTable(state, { onAttachTag, onEditTab, onSyncTab } = {
 
       tr.querySelector(".delete-tab-btn")?.addEventListener("click", async (event) => {
         event.stopPropagation();
-        if (!confirm(`Удалить вкладку "${tab.name}"?`)) return;
-        await deleteTab(tab.id);
-        await renderTabs();
+        const tabLabel = tab.name ? `"${tab.name}"` : `#${tab.id}`;
+        const confirmations = [
+          `Удалить вкладку ${tabLabel}?`,
+          `Удаление ${tabLabel} приведёт к удалению всех её ящиков. Продолжить?`,
+          `Вкладка ${tabLabel} будет удалена безвозвратно. Точно удалить?`,
+        ];
+        for (const message of confirmations) {
+          if (!confirm(message)) return;
+        }
+        try {
+          await deleteTab(tab.id);
+          await renderTabs();
+          showTopAlert("Вкладка удалена", "success");
+        } catch (err) {
+          console.error("Не удалось удалить вкладку", err);
+          showTopAlert(err?.message || "Не удалось удалить вкладку", "danger");
+        }
       });
 
       tr.addEventListener("click", (event) => {

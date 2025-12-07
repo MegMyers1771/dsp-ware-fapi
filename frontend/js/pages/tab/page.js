@@ -85,6 +85,30 @@ function setupQuickActions(tagManager) {
       await tagManager.showCreateTagOffcanvas();
     });
   }
+
+  const ddNewTab = document.getElementById("dropdown-new-tab");
+  if (ddNewTab) {
+    ddNewTab.addEventListener("click", (event) => {
+      event.preventDefault();
+      const modal = document.getElementById("createTabModal");
+      if (modal) {
+        bootstrap.Modal.getOrCreateInstance(modal).show();
+        setTimeout(() => document.getElementById("tabName")?.focus(), 100);
+      }
+    });
+  }
+
+  const ddCreateStatus = document.getElementById("dropdown-create-status");
+  if (ddCreateStatus) {
+    ddCreateStatus.addEventListener("click", (event) => {
+      event.preventDefault();
+      const modal = document.getElementById("createStatusModal");
+      if (modal) {
+        bootstrap.Modal.getOrCreateInstance(modal).show();
+        setTimeout(() => document.getElementById("statusName")?.focus(), 100);
+      }
+    });
+  }
 }
 
 function setupBoxForm(boxesController) {

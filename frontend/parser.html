@@ -33,25 +33,8 @@
           </li>
         </ul>
         <div class="d-flex align-items-center gap-2 flex-wrap ms-auto">
-          <button class="btn btn-outline-info btn-sm" id="parserRefreshBtn" type="button">Обновить список</button>
-          <div class="nav-item dropdown">
-            <a
-              class="nav-link dropdown-toggle"
-              href="#"
-              role="button"
-              id="currentUserDropdown"
-              data-bs-toggle="dropdown"
-              aria-expanded="false"
-            >
-              (Авторизация)
-            </a>
-            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="currentUserDropdown">
-              <li><button type="button" id="userManagementBtn" class="dropdown-item d-none">Управление пользователями</button></li>
-              <li><button type="button" id="advancedModeBtn" class="dropdown-item d-none">Расширенный режим</button></li>
-              <li><button type="button" id="loginBtn" class="dropdown-item">Войти</button></li>
-              <li><button type="button" id="logoutBtn" class="dropdown-item text-danger d-none">Выйти</button></li>
-            </ul>
-          </div>
+          <!-- <button class="btn btn-outline-info btn-sm" id="parserRefreshBtn" type="button">Обновить список</button> -->
+          <div id="userDropdownPlaceholder"></div>
         </div>
       </div>
     </div>
@@ -63,13 +46,21 @@
         <h2 class="mb-1">Импорт вкладок из Google Sheets</h2>
         <p class="text-muted small mb-0">Сначала запусти парсер, затем импортируй готовый JSON в базу</p>
       </div>
-      <button class="btn btn-outline-secondary btn-sm" id="parserGoHomeBtn" type="button">Главная</button>
+      
+      
     </div>
 
     <div class="card mb-4">
       <div class="card-header d-flex justify-content-between align-items-center">
         <span>Настройки парсинга</span>
-        <button type="button" class="btn btn-outline-light btn-sm" id="parserFillExampleBtn">Заполнить пример</button>
+        <div class="btn-group btn-group-sm">
+          <!-- <button type="button" class="btn btn-outline-light btn-sm" id="parserFillExampleBtn">Главная страница</button> -->
+          <button type="button" class="btn btn-outline-light btn-sm" id="parserFillExampleBtn">Заполнить пример</button>
+          <button type="button" class="btn btn-outline-light btn-sm" id="parserRefreshBtn">Обновить список</button>
+          
+        </div>
+        
+        
       </div>
       <div class="card-body">
         <form id="parserConfigForm" class="row g-3">
@@ -106,18 +97,6 @@
             <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="addFieldBtn">Добавить поле</button>
             <div class="form-text">Каждый ключ — поле приложения, значение — колонка листа</div>
           </div>
-          <div class="col-12">
-            <label class="form-label">Диапазоны с allowed values (опционально)</label>
-            <div class="d-flex align-items-center gap-2">
-              <span id="allowedRangesSummary" class="text-muted small">Нет диапазонов</span>
-              <button type="button" class="btn btn-sm btn-outline-secondary" id="openAllowedValuesModal">
-                Заполнить значения
-              </button>
-            </div>
-            <div class="form-text">
-              Эти диапазоны используются для сбора возможных значений из validation rules
-            </div>
-          </div>
           <div class="col-md-6">
             <label class="form-label d-block">Включить POS</label>
             <div class="form-check form-switch">
@@ -146,7 +125,6 @@
           <tr>
             <th>Название</th>
             <th style="width:120px" class="text-center">Поля</th>
-            <th style="width:140px" class="text-center">Диапазоны</th>
             <th style="width:180px" class="text-center">Парсинг</th>
             <th style="width:240px" class="text-center">Действия</th>
           </tr>
@@ -175,29 +153,6 @@
       </div>
     </div>
 
-    <!-- Allowed values Modal -->
-    <div class="modal fade" id="allowedValuesModal" tabindex="-1" aria-hidden="true">
-      <div class="modal-dialog modal-lg modal-dialog-scrollable">
-        <div class="modal-content">
-          <form id="allowedValuesForm">
-            <div class="modal-header">
-              <h5 class="modal-title">Диапазоны с allowed values</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-              <div id="allowedValuesList" class="row g-2"></div>
-              <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="addAllowedValueBtn">
-                Добавить диапазон
-              </button>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
-              <button type="submit" class="btn btn-primary">Сохранить</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
   </div>
 
   <!-- Login Modal -->
