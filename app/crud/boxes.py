@@ -9,6 +9,7 @@ DEFAULT_QTY = 1
 
 def _box_items_total_expression():
     normalized_qty = case(
+        (models.Item.id.is_(None), 0),
         (models.Item.qty.is_(None), DEFAULT_QTY),
         (models.Item.qty <= 0, DEFAULT_QTY),
         else_=models.Item.qty,
