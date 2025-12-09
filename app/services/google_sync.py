@@ -71,13 +71,41 @@ class TabSyncManager:
         self._boxes = sheets_parser.extract_box_structure(values, self.config)
 
     def _ensure_state(self):
+        logger.info("STATE")
         if self._values is None or self._header_map is None or self._boxes is None:
             self._fetch_state()
+            self._ensure_columns_present()
 
     def _clear_state(self):
         self._values = None
         self._header_map = None
         self._boxes = None
+
+    def _ensure_columns_present(self):
+        """
+        Если в таблице нет колонок из маппинга конфигурации, добавляем их в шапку.
+        """
+        missing = [col for col in (self.fields or {}).values() if col and col not in (self._header_map or {})]
+        if not missing:
+            logger.info("THERE IS NO MISSING in: ", self.fields )
+            return
+
+        logger.info("MISSING: ", missing)
+
+        next_idx = len(self._header_map or {})
+        for column_name in missing:
+            column_letter = self._column_letter(next_idx)
+            # Обновляем заголовок в первой строке, чтобы создать новую колонку.
+            self.service.spreadsheets().values().update(
+                spreadsheetId=self.spreadsheet_id,
+                range=f"'{self.worksheet_name}'!{column_letter}1",
+                valueInputOption="USER_ENTERED",
+                body={"values": [[column_name]]},
+            ).execute()
+            next_idx += 1
+
+        # После модификации шапки перезагружаем состояние.
+        self._fetch_state()
 
     def _find_box(self, name: str) -> Optional[Dict[str, Any]]:
         self._ensure_state()

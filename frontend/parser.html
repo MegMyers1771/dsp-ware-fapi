@@ -56,6 +56,7 @@
         <div class="btn-group btn-group-sm">
           <!-- <button type="button" class="btn btn-outline-light btn-sm" id="parserFillExampleBtn">Главная страница</button> -->
           <button type="button" class="btn btn-outline-light btn-sm" id="parserFillExampleBtn">Заполнить пример</button>
+          <button type="button" class="btn btn-outline-light btn-sm" id="importConfigBtn">Импорт конфига</button>
           <button type="button" class="btn btn-outline-light btn-sm" id="parserRefreshBtn">Обновить список</button>
           
         </div>
@@ -84,12 +85,10 @@
           </div>
           <div class="col-md-6">
             <label class="form-label">Credentials JSON</label>
-            <div class="input-group">
-              <input type="text" class="form-control" id="parserCredentialsPath" placeholder="test-credentials.json" />
-              <button type="button" class="btn btn-outline-secondary" id="saveCredentialsPathBtn">Сохранить</button>
+            <div class="d-flex flex-wrap align-items-center gap-2">
               <button type="button" class="btn btn-outline-secondary" id="uploadCredentialsBtn">Импорт JSON</button>
+              <div class="text-muted small">Файл будет сохранён как <code>credentials.json</code></div>
             </div>
-            <div class="form-text">Путь из sheets_config.json (CREDENTIALS) или загрузите новый JSON</div>
           </div>
           <div class="col-12">
             <label class="form-label">Поля (обязательные: «Имя», «Кол-во»)</label>

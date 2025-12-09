@@ -11,4 +11,4 @@ def read_sync_worker_status():
     """
     Возвращает информацию о доступности воркера очереди синхронизации.
     """
-    return {"rq_worker_online": sync_queue.has_active_worker()}
+    return sync_queue.get_worker_status()

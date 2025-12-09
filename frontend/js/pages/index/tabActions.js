@@ -214,6 +214,7 @@ export async function openTabSyncModal(tab, { onTabsChanged } = {}) {
   if (onTabsChanged) {
     syncModalState.onTabsChanged = onTabsChanged;
   }
+  syncModalState.workerAlertShown = false;
   syncModalState.currentTab = tab;
   syncModalState.tabNameEl.textContent = `Синхронизация «${tab.name}»`;
   syncModalState.submitBtn?.setAttribute("disabled", "disabled");
@@ -240,7 +241,7 @@ export async function openTabSyncModal(tab, { onTabsChanged } = {}) {
       syncModalState.spreadsheetInput.value = env.spreadsheet_id || "";
       syncModalState.spreadsheetInput.dataset.initialValue = env.spreadsheet_id || "";
     }
-    updateSyncWorkerWarning(workerStatus?.rq_worker_online);
+    updateSyncWorkerWarning(workerStatus);
     syncModalState.submitBtn?.removeAttribute("disabled");
     syncModalState.modal.show();
   } catch (err) {
@@ -380,20 +381,25 @@ async function handleTabSyncSubmit(event) {
   }
 }
 
-function updateSyncWorkerWarning(isOnline) {
-  const normalized = !!isOnline;
-  syncModalState.workerOnline = normalized;
+function updateSyncWorkerWarning(status) {
+  const online = !!(status && status.rq_worker_online);
+  const errorMessage = status?.last_error || status?.error;
+  syncModalState.workerOnline = online;
   const warningEl = syncModalState.workerWarningEl;
   const enableSwitch = syncModalState.enableSwitch;
   if (warningEl) {
-    warningEl.classList.toggle("d-none", normalized);
+    warningEl.classList.toggle("d-none", online);
   }
   if (enableSwitch) {
-    if (normalized) {
+    if (online) {
       enableSwitch.removeAttribute("disabled");
     } else {
       enableSwitch.checked = false;
       enableSwitch.setAttribute("disabled", "disabled");
     }
+  }
+  if (errorMessage && !syncModalState.workerAlertShown) {
+    showTopAlert(errorMessage, "danger", 8000);
+    syncModalState.workerAlertShown = true;
   }
 }

@@ -13,7 +13,7 @@ from app.services import parser_utils, sheets_config
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 PARSER_ROOT = PROJECT_ROOT / "gsheets_parser"
 PARSED_TABS_DIR = PARSER_ROOT / "parsed-tabs"
-DEFAULT_CREDENTIALS = PROJECT_ROOT / "test-credentials.json"
+DEFAULT_CREDENTIALS = PROJECT_ROOT / "credentials.json"
 
 _PARSER_MODULE = None
 

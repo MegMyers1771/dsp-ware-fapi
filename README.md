@@ -2,7 +2,7 @@
 Реализация склада DSP на FastAPI
 
 # Required files - Google Sheets
-test-credentials.json
+credentials.json
 sheets_config.json
 
 ## Очередь синхронизации

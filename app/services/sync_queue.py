@@ -3,11 +3,14 @@ from __future__ import annotations
 import logging
 import os
 from functools import lru_cache
+from typing import Optional
 
 from redis import Redis
 from rq import Queue, Retry, Worker
 
 logger = logging.getLogger(__name__)
+
+_ERROR_KEY = "sync_worker:last_error"
 
 
 @lru_cache
@@ -56,3 +59,41 @@ def has_active_worker() -> bool:
     except Exception:
         logger.exception("Не удалось проверить статус воркера синхронизации")
         return False
+
+
+def set_last_error(message: str, ttl_seconds: int = 3600) -> None:
+    """
+    Сохраняет последнее сообщение об ошибке воркера в Redis, чтобы фронт мог показать алерт.
+    """
+    try:
+        _redis_connection().set(_ERROR_KEY, message, ex=ttl_seconds)
+    except Exception:
+        logger.exception("Не удалось записать ошибку воркера")
+
+
+def clear_last_error() -> None:
+    try:
+        _redis_connection().delete(_ERROR_KEY)
+    except Exception:
+        logger.exception("Не удалось очистить ошибку воркера")
+
+
+def get_last_error() -> Optional[str]:
+    try:
+        raw = _redis_connection().get(_ERROR_KEY)
+        if raw is None:
+            return None
+        return raw.decode("utf-8", "ignore") if isinstance(raw, (bytes, bytearray)) else str(raw)
+    except Exception:
+        logger.exception("Не удалось получить сообщение об ошибке воркера")
+        return None
+
+
+def get_worker_status() -> dict:
+    """
+    Возвращает статус воркера с последней ошибкой (если была).
+    """
+    return {
+        "rq_worker_online": has_active_worker(),
+        "last_error": get_last_error(),
+    }

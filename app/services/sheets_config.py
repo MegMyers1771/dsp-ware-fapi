@@ -12,7 +12,7 @@ CONFIG_PATH = PROJECT_ROOT / "sheets_config.json"
 
 def _read_config() -> Dict[str, Any]:
     if not CONFIG_PATH.exists():
-        return {"SPREADSHEET_ID": "", "CREDENTIALS": "test-credentials.json"}
+        return {"SPREADSHEET_ID": "", "CREDENTIALS": "credentials.json"}
     try:
         with CONFIG_PATH.open("r", encoding="utf-8") as fh:
             data = json.load(fh)
@@ -20,7 +20,7 @@ def _read_config() -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Не удалось прочитать sheets_config.json: {exc}") from exc
     return {
         "SPREADSHEET_ID": data.get("SPREADSHEET_ID", ""),
-        "CREDENTIALS": data.get("CREDENTIALS", "test-credentials.json"),
+        "CREDENTIALS": data.get("CREDENTIALS", "credentials.json"),
     }
 
 
@@ -61,8 +61,8 @@ def _resolve_path(path_value: str) -> Path:
 
 
 def save_credentials_file(data: Dict[str, Any], destination: str | None = None) -> Dict[str, str]:
-    config = _read_config()
-    path_value = destination or config.get("CREDENTIALS") or "test-credentials.json"
+    # Всегда сохраняем под предсказуемым именем, чтобы не требовать от пользователя ввод пути.
+    path_value = destination or "credentials.json"
     target_path = _resolve_path(path_value)
     try:
         target_path.parent.mkdir(parents=True, exist_ok=True)
@@ -76,5 +76,5 @@ def save_credentials_file(data: Dict[str, Any], destination: str | None = None) 
 
 def get_credentials_file() -> str:
     data = _read_config()
-    path_value = data.get("CREDENTIALS") or "test-credentials.json"
+    path_value = data.get("CREDENTIALS") or "credentials.json"
     return str(_resolve_path(path_value))

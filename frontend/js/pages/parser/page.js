@@ -253,45 +253,6 @@ async function loadParserEnv(state) {
   }
 }
 
-// function applyEnvInfoToInputs(info) {
-//   const spreadsheetInput = document.getElementById("parserSpreadsheetId");
-//   if (spreadsheetInput && info?.spreadsheet_id !== undefined) {
-//     spreadsheetInput.value = info.spreadsheet_id || "";
-//   }
-//   const credentialsInput = document.getElementById("parserCredentialsPath");
-//   if (credentialsInput && info?.credentials_path !== undefined) {
-//     credentialsInput.value = info.credentials_path || "";
-//   }
-// }
-
-// function setupEnvInputs(state) {
-//   const spreadsheetInput = document.getElementById("parserSpreadsheetId");
-//   const spreadsheetSaveBtn = document.getElementById("saveSpreadsheetIdBtn");
-//   spreadsheetSaveBtn?.addEventListener("click", () => {
-//     const value = spreadsheetInput?.value.trim();
-//     persistEnvUpdate(state, { spreadsheet_id: value }, "SPREADSHEET_ID обновлён");
-//   });
-//   spreadsheetInput?.addEventListener("keydown", (event) => {
-//     if (event.key === "Enter") {
-//       event.preventDefault();
-//       spreadsheetSaveBtn?.click();
-//     }
-//   });
-
-//   const credentialsInput = document.getElementById("parserCredentialsPath");
-//   const credentialsSaveBtn = document.getElementById("saveCredentialsPathBtn");
-//   credentialsSaveBtn?.addEventListener("click", () => {
-//     const value = credentialsInput?.value.trim();
-//     persistEnvUpdate(state, { credentials_path: value }, "CREDENTIALS обновлён");
-//   });
-//   credentialsInput?.addEventListener("keydown", (event) => {
-//     if (event.key === "Enter") {
-//       event.preventDefault();
-//       credentialsSaveBtn?.click();
-//     }
-//   });
-// }
-
 async function persistEnvUpdate(state, payload, successMessage) {
   const updates = {};
   if ("spreadsheet_id" in payload) {
@@ -328,10 +289,6 @@ function applyEnvInfoToInputs(info) {
   if (spreadsheetInput && info?.spreadsheet_id !== undefined) {
     spreadsheetInput.value = info.spreadsheet_id || "";
   }
-  const credentialsInput = document.getElementById("parserCredentialsPath");
-  if (credentialsInput && info?.credentials_path !== undefined) {
-    credentialsInput.value = info.credentials_path || "";
-  }
 }
 
 function setupEnvInputs(state) {
@@ -345,19 +302,6 @@ function setupEnvInputs(state) {
     if (event.key === "Enter") {
       event.preventDefault();
       spreadsheetSaveBtn?.click();
-    }
-  });
-
-  const credentialsInput = document.getElementById("parserCredentialsPath");
-  const credentialsSaveBtn = document.getElementById("saveCredentialsPathBtn");
-  credentialsSaveBtn?.addEventListener("click", () => {
-    const value = credentialsInput?.value.trim();
-    persistEnvUpdate(state, { credentials_path: value }, "CREDENTIALS обновлён");
-  });
-  credentialsInput?.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      credentialsSaveBtn?.click();
     }
   });
 }
@@ -396,11 +340,9 @@ function setupEnvInputs(state) {
 function setupCredentialsUpload(state) {
   setupJsonImportTrigger("uploadCredentialsBtn", "credentialsFileInput", async (jsonData) => {
     try {
-      const pathValue = document.getElementById("parserCredentialsPath")?.value.trim();
-      const info = await uploadParserCredentials({ data: jsonData, path: pathValue || undefined });
+      const info = await uploadParserCredentials({ data: jsonData, path: "credentials.json" });
       state.envInfo = info;
-      applyEnvInfoToInputs(info);
-      showTopAlert("Credentials сохранён", "success");
+      showTopAlert("Credentials сохранён как credentials.json", "success");
     } catch (err) {
       console.error("Импорт credentials не удался", err);
       showTopAlert(err?.message || "Не удалось импортировать credentials", "danger");
