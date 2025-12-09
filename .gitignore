@@ -6,7 +6,7 @@ issue_history.xlsx
 .env
 .vscode/
 test.db
-test-credentials.json
+credentials.json
 alembic/__archive__/*
 docker-test-db/
 appstart_global.sh
